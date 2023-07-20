@@ -131,7 +131,7 @@ async function combineLibraries(base, supplied) {
     assets: await fetchAssetsData(assetsPath),
     blocks: base.blocks.data,
     icons: base.icons?.data,
-    merchPods: base.merchPods?.data,
+    merch_pods: base.merchPods?.data,
     personalization_tags: base.personalization?.data,
     placeholders: base.placeholders?.data,
   };

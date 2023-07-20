@@ -124,7 +124,7 @@
       }
     ]
   },
-  "merch-pods": {
+  "merchPods": {
     "total": 22,
     "offset": 0,
     "limit": 22,
@@ -225,7 +225,7 @@
     "personalization",
     "placeholders",
     "icons",
-    "merch-pods"
+    "merchPods"
   ],
   ":type": "multi-sheet"
 }
