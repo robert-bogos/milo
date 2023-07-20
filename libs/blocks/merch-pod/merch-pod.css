@@ -1,0 +1,13 @@
+/* stylelint-disable-next-line selector-class-pattern */
+.merch-pod .consonant-ProductCard-title {
+  line-height: 1.375rem;
+  border: #000B1D;
+}
+
+.merch-pod hr {
+  background-color: #000;
+  border: none;
+  height: 1px;
+  width: 100%;
+  margin-bottom: var(--spacing-xs);
+}

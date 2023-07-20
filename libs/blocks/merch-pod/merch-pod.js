@@ -35,9 +35,9 @@ const addWrapper = (el, section, cardType) => {
   let upClass = getUpFromSectionMetadata(section);
   // Authored w/ a typed out number reference... 'two-up' vs. '2-up'
   const list = ['two-up', 'three-up', 'four-up', 'five-up'];
-  const ixd = list.findIndex((i) => i.includes(upClass));
+  const ixd = list.findIndex(i => i.includes(upClass));
   if (ixd > -1) {
-    upClass = `${ixd + 2}-up`;
+    upClass = `${ixd+2}-up`;
     section.classList.remove(list[ixd]);
   }
   const up = upClass?.replace('-', '') || '3up';
@@ -47,7 +47,7 @@ const addWrapper = (el, section, cardType) => {
   const inner = createTag('div', { class: 'consonant-Wrapper-inner' }, collection);
   const wrapper = createTag('div', { class: 'milo-card-wrapper consonant-Wrapper consonant-Wrapper--1200MaxWidth' }, inner);
   const cards = section.querySelectorAll('.card');
-  const prevSib = cards[0].previousElementSibling;
+  const prevSib = cards[0]?.previousElementSibling;
 
   grid.append(...cards);
 

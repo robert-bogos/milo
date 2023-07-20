@@ -77,6 +77,9 @@ async function loadList(type, content, list) {
     case 'personalization_tags':
       loadPersonalization(content, list);
       break;
+    case 'merch-pod':
+      loadBlocks(content, list, query);
+      break;
     default:
       await import('../../utils/lana.js');
       window.lana?.log(`Library type not supported: ${type}`, { clientId: 'milo' });
@@ -123,6 +126,7 @@ async function combineLibraries(base, supplied) {
     assets: await fetchAssetsData(assetsPath),
     blocks: base.blocks.data,
     icons: base.icons?.data,
+    merchPods: base.merchPods?.data,
     personalization_tags: base.personalization?.data,
     placeholders: base.placeholders?.data,
   };
@@ -141,6 +145,7 @@ async function combineLibraries(base, supplied) {
 }
 
 function createList(libraries) {
+  console.log("HERE");
   const container = createTag('div', { class: 'con-container' });
 
   const libraryList = createTag('ul', { class: 'sk-library-list' });
