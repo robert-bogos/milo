@@ -209,6 +209,7 @@ export default async function init(el) {
 
   // Get the data
   const base = await fetchLibrary(window.location.origin);
+  console.log('base', base);
   const supplied = await getSuppliedLibrary();
   console.log('supplied', supplied);
   const libraries = await combineLibraries(base, supplied);
