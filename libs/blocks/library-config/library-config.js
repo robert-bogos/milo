@@ -94,7 +94,7 @@ async function loadList(type, content, list) {
 async function fetchLibrary(domain) {
   const { searchParams } = new URL(window.location.href);
   const suppliedLibrary = searchParams.get('library');
-  const library = suppliedLibrary || `${domain}${LIBRARY_PATH}`;
+  const library = suppliedLibrary || 'http://localhost:3000/libs/blocks/library-config/merchPod.json';
   try {
     const resp = await fetch(library);
     if (!resp.ok) return null;
@@ -140,7 +140,6 @@ async function combineLibraries(base, supplied) {
     if (supplied.blocks.data.length > 0) {
       library.blocks.push(...supplied.blocks.data);
     }
-
     if (supplied.placeholders.data.length > 0) {
       library.placeholders = supplied.placeholders.data;
     }
@@ -209,9 +208,8 @@ export default async function init(el) {
 
   // Get the data
   const base = await fetchLibrary(window.location.origin);
-  console.log('base', base);
   const supplied = await getSuppliedLibrary();
-  console.log('supplied', supplied);
+
   const libraries = await combineLibraries(base, supplied);
 
   // Create the UI

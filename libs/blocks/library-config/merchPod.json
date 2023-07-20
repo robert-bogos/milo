@@ -1,0 +1,230 @@
+{
+  "blocks": {
+    "total": 22,
+    "offset": 0,
+    "limit": 22,
+    "data": [
+      {
+        "name": "Marquee",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/marquee"
+      },
+      {
+        "name": "Columns",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/columns"
+      },
+      {
+        "name": "Section Metadata",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/section-metadata"
+      },
+      {
+        "name": "Chart",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/chart"
+      },
+      {
+        "name": "Media",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/media"
+      },
+      {
+        "name": "Z Pattern",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/z-pattern"
+      },
+      {
+        "name": "Merch",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/merch"
+      },
+      {
+        "name": "HowTo",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/howto"
+      },
+      {
+        "name": "Accordion",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/accordion"
+      },
+      {
+        "name": "Text",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/text"
+      },
+      {
+        "name": "Aside",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/aside"
+      },
+      {
+        "name": "IconBlock",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/icon-block"
+      },
+      {
+        "name": "Quote",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/quote"
+      },
+      {
+        "name": "Tabs",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/tabs"
+      },
+      {
+        "name": "Carousel",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/carousel"
+      },
+      {
+        "name": "Card",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/card"
+      },
+      {
+        "name": "Card Metadata",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/card-metadata"
+      },
+      {
+        "name": "Table of Content (TOC)",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/table-of-contents"
+      },
+      {
+        "name": "iFrame",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/iframe"
+      },
+      {
+        "name": "Figure",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/figure"
+      },
+      {
+        "name": "Review",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/review"
+      },
+      {
+        "name": "Table",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/table"
+      }
+    ]
+  },
+  "personalization": {
+    "total": 1,
+    "offset": 0,
+    "limit": 1,
+    "data": [
+      {
+        "path": "https://milo.adobe.com/docs/library/personalization-tags.json"
+      }
+    ]
+  },
+  "placeholders": {
+    "total": 1,
+    "offset": 0,
+    "limit": 1,
+    "data": [
+      {
+        "path": "https://milo.adobe.com/placeholders.json"
+      }
+    ]
+  },
+  "icons": {
+    "total": 1,
+    "offset": 0,
+    "limit": 1,
+    "data": [
+      {
+        "path": "/libs/img/icons/icons.svg"
+      }
+    ]
+  },
+  "merchPods": {
+    "total": 22,
+    "offset": 0,
+    "limit": 22,
+    "data": [
+      {
+        "name": "Marquee",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/marquee"
+      },
+      {
+        "name": "Columns",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/columns"
+      },
+      {
+        "name": "Section Metadata",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/section-metadata"
+      },
+      {
+        "name": "Chart",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/chart"
+      },
+      {
+        "name": "Media",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/media"
+      },
+      {
+        "name": "Z Pattern",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/z-pattern"
+      },
+      {
+        "name": "Merch",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/merch"
+      },
+      {
+        "name": "HowTo",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/howto"
+      },
+      {
+        "name": "Accordion",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/accordion"
+      },
+      {
+        "name": "Text",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/text"
+      },
+      {
+        "name": "Aside",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/aside"
+      },
+      {
+        "name": "IconBlock",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/icon-block"
+      },
+      {
+        "name": "Quote",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/quote"
+      },
+      {
+        "name": "Tabs",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/tabs"
+      },
+      {
+        "name": "Carousel",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/carousel"
+      },
+      {
+        "name": "Card",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/card"
+      },
+      {
+        "name": "Card Metadata",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/card-metadata"
+      },
+      {
+        "name": "Table of Content (TOC)",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/table-of-contents"
+      },
+      {
+        "name": "iFrame",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/iframe"
+      },
+      {
+        "name": "Figure",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/figure"
+      },
+      {
+        "name": "Review",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/review"
+      },
+      {
+        "name": "Table",
+        "path": "https://main--milo--adobecom.hlx.page/docs/library/blocks/table"
+      }
+    ]
+  },
+  ":version": 3,
+  ":names": [
+    "blocks",
+    "personalization",
+    "placeholders",
+    "icons"
+  ],
+  ":type": "multi-sheet"
+}
