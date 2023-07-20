@@ -210,6 +210,7 @@ export default async function init(el) {
   // Get the data
   const base = await fetchLibrary(window.location.origin);
   const supplied = await getSuppliedLibrary();
+  console.log('supplied', supplied);
   const libraries = await combineLibraries(base, supplied);
 
   // Create the UI
