@@ -224,7 +224,8 @@
     "blocks",
     "personalization",
     "placeholders",
-    "icons"
+    "icons",
+    "merchPods"
   ],
   ":type": "multi-sheet"
 }
