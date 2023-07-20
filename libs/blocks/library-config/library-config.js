@@ -27,9 +27,9 @@ async function loadPersonalization(content, list) {
   personalization(content, list);
 }
 
-async function loadMerchPod(content, list) {
-  const { default: merchPod } = await import('./lists/merch-pod.js');
-  merchPod(content, list);
+async function loadMerchPods(content, list) {
+  const { default: merchPods } = await import('./lists/merch-pods.js');
+  merchPods(content, list);
 }
 
 function addSearch(content, list) {
@@ -82,8 +82,8 @@ async function loadList(type, content, list) {
     case 'personalization_tags':
       loadPersonalization(content, list);
       break;
-    case 'merch-pod':
-      loadMerchPod(content, list, query);
+    case 'merch-pods':
+      loadMerchPods(content, list, query);
       break;
     default:
       await import('../../utils/lana.js');
