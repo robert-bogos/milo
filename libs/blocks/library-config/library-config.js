@@ -27,6 +27,11 @@ async function loadPersonalization(content, list) {
   personalization(content, list);
 }
 
+async function loadMerchPod(content, list) {
+  const { default: merchPod } = await import('./lists/merch-pod.js');
+  merchPod(content, list);
+}
+
 function addSearch(content, list) {
   const skLibrary = list.closest('.sk-library');
   const header = skLibrary.querySelector('.sk-library-header');
@@ -78,7 +83,7 @@ async function loadList(type, content, list) {
       loadPersonalization(content, list);
       break;
     case 'merch-pod':
-      loadBlocks(content, list, query);
+      loadMerchPod(content, list, query);
       break;
     default:
       await import('../../utils/lana.js');
@@ -145,7 +150,6 @@ async function combineLibraries(base, supplied) {
 }
 
 function createList(libraries) {
-  console.log("HERE");
   const container = createTag('div', { class: 'con-container' });
 
   const libraryList = createTag('ul', { class: 'sk-library-list' });

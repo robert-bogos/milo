@@ -70,6 +70,7 @@ function isMatchingBlock(pageBlock, query) {
 
 export default async function loadBlocks(blocks, list, query) {
   list.textContent = '';
+  console.log(blocks, list, query);
   blocks.forEach(async (block) => {
     const titleText = createTag('p', { class: 'item-title' }, block.name);
     const title = createTag('li', { class: 'block-group' }, titleText);
