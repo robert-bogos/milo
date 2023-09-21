@@ -343,6 +343,7 @@ export const getConfig = async (originalState, strs = {}) => {
   const complexQuery = buildComplexQuery(state.andLogicTags, state.orLogicTags);
 
   const caasRequestHeaders = addFloodgateHeader(state);
+  const debugFlag = state.showIds ? '&debug=true' : '';
 
   const config = {
     collection: {
@@ -360,7 +361,7 @@ export const getConfig = async (originalState, strs = {}) => {
         ',',
       )}&collectionTags=${collectionTags}&excludeContentWithTags=${excludeContentWithTags}&language=${language}&country=${country}&complexQuery=${complexQuery}&excludeIds=${excludedCards}&currentEntityId=&featuredCards=${featuredCards}&environment=&draft=${
         state.draftDb
-      }&size=${state.collectionSize || state.totalCardsToShow}${flatFile}`,
+      }&size=${state.collectionSize || state.totalCardsToShow}${flatFile}${debugFlag}`,
       fallbackEndpoint: state.fallbackEndpoint,
       totalCardsToShow: state.totalCardsToShow,
       cardStyle: state.cardStyle,
