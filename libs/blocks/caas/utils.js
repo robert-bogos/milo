@@ -343,7 +343,7 @@ export const getConfig = async (originalState, strs = {}) => {
   const complexQuery = buildComplexQuery(state.andLogicTags, state.orLogicTags);
 
   const caasRequestHeaders = addFloodgateHeader(state);
-  const debugFlag = state.showIds ? '&debug=true' : '';
+  const debugFlag = state.showIds && window.location.href.includes('/tools/caas') ? '&debug=true' : '';
 
   const config = {
     collection: {
