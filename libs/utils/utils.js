@@ -486,7 +486,7 @@ export function decorateImageLinks(el) {
   [...images].forEach((img) => {
     const [source, alt, icon] = img.alt.split('|');
     try {
-      const url = convertHlxUrl(new URL(source.trim()));
+      const url = new URL(source.trim());
       if (alt?.trim().length) img.alt = alt.trim();
       const pic = img.closest('picture');
       const picParent = pic.parentElement;
