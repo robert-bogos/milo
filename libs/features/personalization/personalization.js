@@ -181,11 +181,67 @@ function normalizeKeys(obj) {
   }, {});
 }
 
+const getDivInTargetedCell = (tableCell) => {
+  tableCell.replaceChildren();
+  const div = document.createElement('div');
+  tableCell.appendChild(div);
+  return div;
+};
+
+const querySelector = (el, selector, all = false) => {
+  try {
+    if (all) {
+      return el.querySelectorAll(selector);
+    }
+    return el.querySelector(selector);
+  } catch (e) {
+    /* eslint-disable-next-line no-console */
+    console.log('Invalid selector: ', selector);
+    return null;
+  }
+};
+
+function getSelectedEl(rootEl, selector) {
+  if (!selector) return null;
+
+  let selectedEl = querySelector(rootEl, selector);
+  if (selectedEl) return selectedEl;
+
+  // TODO: do we support space delimeted selectors?
+  const [firstTerm, secondTerm] = selector.split(' ').filter((str) => str?.trim());
+  if (firstTerm.includes('-')) {
+    const [, num] = firstTerm.split('-');
+    if (num) {
+      const blockName = firstTerm.replace(`-${num}`, '');
+      selectedEl = querySelector(rootEl, `.${blockName}`, true)?.[num - 1];
+    }
+  } else {
+    selectedEl = querySelector(rootEl, `.${firstTerm}`);
+  }
+  if (!selectedEl) return null;
+  if (!secondTerm) return selectedEl;
+
+  // find targeted table cell in rXcY format
+  const rowColMatch = /r(?<row>\d+)c(?<col>\d+)/gm.exec(secondTerm);
+  if (rowColMatch) {
+    const { row, col } = rowColMatch.groups;
+    const tableCell = querySelector(selectedEl, `:nth-child(${row}) > :nth-child(${col})`);
+    if (!tableCell) return null;
+    return getDivInTargetedCell(tableCell);
+  }
+
+  if (secondTerm) {
+    return querySelector(selectedEl, `.${secondTerm}`);
+  }
+
+  return null;
+}
+
 function handleCommands(commands, manifestId, rootEl = document) {
   commands.forEach((cmd) => {
     if (VALID_COMMANDS.includes(cmd.action)) {
       try {
-        const selectorEl = rootEl.querySelector(cmd.selector);
+        const selectorEl = getSelectedEl(rootEl, cmd.selector);
         if (!selectorEl) return;
         COMMANDS[cmd.action](selectorEl, cmd.target, manifestId);
       } catch (e) {
@@ -317,7 +373,8 @@ export const getEntitlements = (() => {
   let ents;
   let logoutEventSet;
   return (async () => {
-    if (window.adobeIMS && !window.adobeIMS.isSignedInUser()) {
+    if (window.adobeIMS && !window.adobeIMS.isSignedInUser()
+      || !getConfig().imsClientId) {
       clearEntLocalStorage();
       return {};
     }

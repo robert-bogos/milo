@@ -31,18 +31,23 @@ const updateFragMap = (fragment, a, href) => {
   }
 };
 
-const setManifestIdOnChildren = (sections, manifestId) => {
-  [...sections[0].children].forEach(
-    (child) => (child.dataset.manifestId = manifestId),
-  );
-};
-
 const insertInlineFrag = (sections, a) => {
   // Inline fragments only support one section, other sections are ignored
-  const fragChildren = [...sections[0].children];
+  let fragChildren = [...sections[0].children];
+  if (fragChildren.length === 1 && fragChildren[0].nodeName === 'P') {
+    fragChildren = fragChildren[0].children;
+  }
+
   if (a.parentElement.nodeName === 'DIV' && !a.parentElement.attributes.length) {
+    if (a.dataset.manifestId) a.parentElement.dataset.manifestId = a.dataset.manifestId;
+
     a.parentElement.replaceWith(...fragChildren);
   } else {
+    if (a.dataset.manifestId) {
+      [...fragChildren].forEach(
+        (child) => (child.dataset.manifestId = a.dataset.manifestId),
+      );
+    }
     a.replaceWith(...fragChildren);
   }
 };
@@ -86,14 +91,6 @@ export default async function init(a) {
   }
 
   updateFragMap(fragment, a, relHref);
-
-  if (a.dataset.manifestId) {
-    if (inline) {
-      setManifestIdOnChildren(sections, a.dataset.manifestId);
-    } else {
-      fragment.dataset.manifestId = a.dataset.manifestId;
-    }
-  }
 
   if (inline) {
     insertInlineFrag(sections, a);
