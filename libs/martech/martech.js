@@ -19,6 +19,7 @@ const setDeep = (obj, path, value) => {
 const waitForEventOrTimeout = (eventName, timeout) => new Promise((resolve, reject) => {
   const timer = setTimeout(() => {
     reject(new Error(`Timeout waiting for ${eventName} after ${timeout}ms`));
+    window._satellite.track('martechTimeout');
   }, timeout);
 
   window.addEventListener(eventName, (event) => {
