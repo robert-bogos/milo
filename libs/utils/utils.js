@@ -970,7 +970,7 @@ async function documentPostSectionLoading(config) {
   });
 }
 
-async function processSection(section, config, isDoc) {
+async function processSection(section, config, isDoc, first) {
   const inlineFrags = [...section.el.querySelectorAll('a[href*="#_inline"]')];
   if (inlineFrags.length) {
     const { default: loadInlineFrags } = await import('../blocks/fragment/fragment.js');
@@ -986,20 +986,26 @@ async function processSection(section, config, isDoc) {
     await Promise.all(preloads);
   }
 
-  const loaded = section.blocks.map((block) => loadBlock(block));
-
-  await decorateIcons(section.el, config);
+  if (first) {
+    // await loadBlock(section.blocks[section.blocks.length - 1]);
+    await loadBlock(section.blocks[0]);
+    await loadBlock(section.blocks[1]);
+    delete section.el.dataset.status;
+  }
+  const loaded = section.blocks.splice(2).map((block) => loadBlock(block));
 
   // Only move on to the next section when all blocks are loaded.
   await Promise.all(loaded);
 
-  if (isDoc && section.el.dataset.idx === '0') {
-    loadPostLCP(config);
-  }
-
   // Show the section when all blocks inside are done.
   delete section.el.dataset.status;
   delete section.el.dataset.idx;
+
+  if (isDoc && first) {
+    loadPostLCP(config);
+  }
+
+  decorateIcons(section.el, config);
 
   return section.blocks;
 }
@@ -1013,7 +1019,7 @@ export async function loadArea(area = document) {
   }
 
   const config = getConfig();
-  await decoratePlaceholders(area, config);
+  decoratePlaceholders(area, config);
 
   if (isDoc) {
     decorateDocumentExtras(config);
@@ -1022,8 +1028,10 @@ export async function loadArea(area = document) {
   const sections = decorateSections(area, isDoc);
 
   const areaBlocks = [];
+  let index = 0;
   for (const section of sections) {
-    const sectionBlocks = await processSection(section, config, isDoc);
+    const sectionBlocks = await processSection(section, config, isDoc, index === 0);
+    index += 1;
     areaBlocks.push(...sectionBlocks);
 
     areaBlocks.forEach((block) => {
