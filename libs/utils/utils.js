@@ -987,12 +987,14 @@ async function processSection(section, config, isDoc, first) {
   }
 
   if (first) {
-    // await loadBlock(section.blocks[section.blocks.length - 1]);
+    await loadBlock(section.blocks[section.blocks.length - 1]);
     await loadBlock(section.blocks[0]);
-    await loadBlock(section.blocks[1]);
+    // await loadBlock(section.blocks[1]);
     delete section.el.dataset.status;
   }
-  const loaded = section.blocks.splice(2).map((block) => loadBlock(block));
+  const loaded = section.blocks
+    .splice(1, section.blocks.length - 1)
+    .map((block) => loadBlock(block));
 
   // Only move on to the next section when all blocks are loaded.
   await Promise.all(loaded);
