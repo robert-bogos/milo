@@ -976,7 +976,7 @@ async function processSection(section, config, isDoc, first) {
   if (inlineFrags.length) {
     const { default: loadInlineFrags } = await import('../blocks/fragment/fragment.js');
     const fragPromises = inlineFrags.map((link) => loadInlineFrags(link));
-    await Promise.all(fragPromises);
+    Promise.all(fragPromises);
     const newlyDecoratedSection = decorateSection(section.el, section.idx);
     section.blocks = newlyDecoratedSection.blocks;
     section.preloadLinks = newlyDecoratedSection.preloadLinks;
@@ -984,7 +984,7 @@ async function processSection(section, config, isDoc, first) {
 
   if (section.preloadLinks.length) {
     const preloads = section.preloadLinks.map((block) => loadBlock(block));
-    await Promise.all(preloads);
+    Promise.all(preloads);
   }
 
   const { blocks } = section;
@@ -999,11 +999,12 @@ async function processSection(section, config, isDoc, first) {
   if (isDoc && first) {
     // load first block immediately
     await loadBlock(blocks[0]);
-    await Promise.all(blocks.splice(1).map((block) => loadBlock(block)));
 
     delete section.el.dataset.status;
 
     loadPostLCP(config);
+
+    await Promise.all(blocks.splice(1).map((block) => loadBlock(block)));
   } else {
     const loaded = blocks.map((block) => loadBlock(block));
 
@@ -1029,7 +1030,7 @@ export async function loadArea(area = document) {
   }
 
   const config = getConfig();
-  await decoratePlaceholders(area, config);
+  decoratePlaceholders(area, config);
 
   if (isDoc) {
     decorateDocumentExtras(config);
