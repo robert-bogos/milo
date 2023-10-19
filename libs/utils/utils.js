@@ -197,10 +197,7 @@ export const [setConfig, updateConfig, getConfig] = (() => {
       } catch (e) {
         console.log('Invalid or missing locale:', e);
       }
-      //Here it sets contentRoot to "http://localhost:2000http://localhost:2000" 
-      //which looks doubled, not sure if it's correct
       config.locale.contentRoot = `${origin}${config.locale.prefix}${config.contentRoot ?? ''}`;
-      //
       config.useDotHtml = !PAGE_URL.origin.includes('.hlx.')
         && (conf.useDotHtml ?? PAGE_URL.pathname.endsWith('.html'));
       return config;
