@@ -80,9 +80,9 @@ export const mockRes = ({ payload, status = 200, ok = true } = {}) =>
 
 // TODO -> find a way to wait for all the async to be resolved
 export const uglyWaitForAllAsync = async () => {
-  return await new Promise(resolve => setTimeout(resolve, 300))
-}
-// 
+  return await new Promise((resolve) => setTimeout(resolve, 300));
+};
+//
 
 export const createFullGlobalFooter = async ({ baseFooter }) => {
   document.body.appendChild(
@@ -114,7 +114,7 @@ export const createFullGlobalFooter = async ({ baseFooter }) => {
   ]);
 
   const instance = initFooter(document.querySelector('footer'));
-  await uglyWaitForAllAsync()
+  await uglyWaitForAllAsync();
   return instance;
 };
 
@@ -125,9 +125,8 @@ export const insertDummyElementOnTop = ({ height }) => {
   document.body.insertBefore(dummyElement, firstChild);
 };
 
-export const skipTime = (clock ,ms) => {
-  setTimeout(
-    () => console.log(`${ms}ms have passed`), ms);
-  clock.tick(ms)
+export const skipTime = (clock, ms) => {
+  setTimeout(() => console.log(`${ms}ms have passed`), ms);
+  clock.tick(ms);
   return;
-}
+};
