@@ -79,7 +79,7 @@ describe('global footer', () => {
       }
     });
 
-    it('should render the footer when outside of the 300px viewport range, but scrolled into view earlier then 3s', async function () {
+    it('should render the footer when outside of the 300px viewport range, but scrolled into view earlier than 3s', async function () {
       const viewportHeight = window.innerHeight;
       insertDummyElementOnTop({ height: viewportHeight + 400 });
 
