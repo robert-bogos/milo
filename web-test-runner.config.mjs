@@ -1,6 +1,5 @@
 import { importMapsPlugin } from '@web/dev-server-import-maps';
 import { defaultReporter, summaryReporter } from '@web/test-runner';
-
 function customReporter() {
   return {
     async reportTestFileResults({ logger, sessionsForTestFile }) {
@@ -90,5 +89,5 @@ export default {
     </html>`,
   // Comment in the files for selectively running test suites
   // npm run test:file:watch allows to you to run single test file & view the result in a browser.
-  // files: ['**/utils.test.js'],
+  files: ['./test/blocks/global-footer/global-footer.test.js'],
 };
