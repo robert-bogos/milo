@@ -411,7 +411,7 @@ class Gnav {
 
       if (isExpanded) setHamburgerPadding();
     };
-
+    // test
     toggle.addEventListener('click', () => logErrorFor(onToggleClick, 'Toggle click failed'));
 
     const onDeviceChange = () => {
