@@ -70,7 +70,7 @@ class Footer {
     this.body = await this.fetchContent();
 
     if (!this.body) return;
-
+    console.log('test');
     const [region, social] = ['.region-selector', '.social'].map((selector) => this.body.querySelector(selector));
     const [regionParent, socialParent] = [region?.parentElement, social?.parentElement];
     [regionParent, socialParent].forEach((parent) => parent?.replaceChildren());
