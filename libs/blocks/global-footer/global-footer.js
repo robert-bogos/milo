@@ -73,7 +73,7 @@ class Footer {
 
     const [region, social] = ['.region-selector', '.social'].map((selector) => this.body.querySelector(selector));
     const [regionParent, socialParent] = [region?.parentElement, social?.parentElement];
-    [regionParent, socialParent].forEach((parent) => parent.replaceChildren());
+    [regionParent, socialParent].forEach((parent) => parent?.replaceChildren());
 
     decorateLinks(this.body);
 
