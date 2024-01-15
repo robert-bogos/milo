@@ -775,6 +775,7 @@ export async function decorateFooterPromo() {
 }
 
 let imsLoaded;
+let imsResolved = false;
 export async function loadIms() {
   imsLoaded = imsLoaded || new Promise((resolve, reject) => {
     const { locale, imsClientId, imsScope, env } = getConfig();
@@ -783,7 +784,6 @@ export async function loadIms() {
       return;
     }
     const timeout = setTimeout(() => reject(new Error('IMS timeout')), 5000);
-    let resolved = false;
     window.adobeid = {
       client_id: imsClientId,
       scope: imsScope || 'AdobeID,openid,gnav',
@@ -792,12 +792,12 @@ export async function loadIms() {
       environment: env.ims,
       useLocalStorage: false,
       onReady: () => {
-        resolved = true;
+        imsResolved = true;
         resolve();
         clearTimeout(timeout);
       },
       onError: (e) => {
-        if (resolved) return;
+        if (imsResolved) return;
         reject(e);
       },
     };
