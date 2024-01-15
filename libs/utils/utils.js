@@ -794,7 +794,14 @@ export async function loadIms() {
         resolve();
         clearTimeout(timeout);
       },
-      onError: reject,
+      onError: (e) => {
+        if (window.adobeIMS.initialized) {
+          resolve();
+          clearTimeout(timeout);
+        } else {
+          reject(e);
+        }
+      },
     };
     loadScript('https://auth.services.adobe.com/imslib/imslib.min.js');
   }).then(() => {
