@@ -207,7 +207,7 @@ class Gnav {
   ims = async () => loadIms()
     .then(() => this.imsReady())
     .catch((e) => {
-      if (e?.message === 'IMS timeout') {
+      if (e?.message === 'IMS timeout' || e === 'http') {
         window.addEventListener('onImsLibInstance', () => this.imsReady());
         return;
       }
