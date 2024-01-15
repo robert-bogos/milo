@@ -783,6 +783,7 @@ export async function loadIms() {
       return;
     }
     const timeout = setTimeout(() => reject(new Error('IMS timeout')), 5000);
+    let resolved = false;
     window.adobeid = {
       client_id: imsClientId,
       scope: imsScope || 'AdobeID,openid,gnav',
@@ -791,15 +792,14 @@ export async function loadIms() {
       environment: env.ims,
       useLocalStorage: false,
       onReady: () => {
+        resolved = true;
         resolve();
         clearTimeout(timeout);
       },
-      onError: () => window.adobeIMS.getAccessToken().then(() => {
-        resolve();
-        clearTimeout(timeout);
-      }).catch((e) => {
+      onError: (e) => {
+        if (resolved) return;
         reject(e);
-      }),
+      },
     };
     loadScript('https://auth.services.adobe.com/imslib/imslib.min.js');
   }).then(() => {
