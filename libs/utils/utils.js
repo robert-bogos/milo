@@ -775,7 +775,6 @@ export async function decorateFooterPromo() {
 }
 
 let imsLoaded;
-let imsResolved = false;
 export async function loadIms() {
   imsLoaded = imsLoaded || new Promise((resolve, reject) => {
     const { locale, imsClientId, imsScope, env } = getConfig();
@@ -792,7 +791,6 @@ export async function loadIms() {
       environment: env.ims,
       useLocalStorage: false,
       onReady: () => {
-        imsResolved = true;
         resolve();
         clearTimeout(timeout);
       },
