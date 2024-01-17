@@ -796,7 +796,7 @@ export async function loadIms() {
       },
       onError: reject,
     };
-    loadScript('https://auth.services.adobe.com/imslib/imslib.min.js');
+    loadScript('https://auth-stg1.services.adobe.com/imslib/imslib.min.js');
   }).then(() => {
     if (!window.adobeIMS?.isSignedInUser()) {
       getConfig().entitlements([]);
