@@ -162,6 +162,14 @@ const eagerLoad = (img) => {
 
 (async function loadPage() {
   performance.mark('loadpage');
+  if (['hlx.page', 'hlx.live', 'stage.adobe', 'corp.adobe'].some((i) => window.location.hostname.includes(i))) {
+    try {
+      const stageMapResp = await fetch('https://main--federal--adobecom.hlx.page/drafts/rbogos/test-stage-links-map.json');
+      if (!stageMapResp.ok) throw new Error('Failed to fetch');
+      // eslint-disable-next-line
+      config.stageDomainsMap = Object.fromEntries((await stageMapResp.json()).data.map((i) => [i.prod, i.stage]));
+    } catch (e) { console.log('Stage domains map error:', e); }
+  }
   setConfig(config);
   loadLana({ clientId: 'milo' });
   await loadArea();
