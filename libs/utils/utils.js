@@ -716,7 +716,7 @@ export function decorateLinks(el) {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background-color: #FAFAF0;
+  background-color: #3366ff;
   position: absolute;
   z-index: 10;
   opacity: 0.7;
@@ -727,7 +727,7 @@ export function decorateLinks(el) {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #FAFAF0;
+  background-color: #3366ff;
   position: absolute;
   z-index: 10;
   top: 80px;
@@ -740,7 +740,7 @@ export function decorateLinks(el) {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #FAFAF0;
+  background-color: #3366ff;
   position: absolute;
   z-index: 10;
   top: 8px;
