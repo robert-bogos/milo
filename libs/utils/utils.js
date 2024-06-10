@@ -607,7 +607,186 @@ export function decorateAutoBlock(a) {
   });
 }
 
+let hasSnow = false;
 export function decorateLinks(el) {
+// snow
+  if (!hasSnow) {
+    const snowDiv = document.createElement('div');
+    snowDiv.id = 'div1';
+    snowDiv.innerHTML = `
+  <div id="snow-wrapper">
+  <div class="box-of-star1">
+  <div class="star star-position1"></div>
+  <div class="star star-position2"></div>
+  <div class="star star-position3"></div>
+  <div class="star star-position4"></div>
+  <div class="star star-position5"></div>
+  <div class="star star-position6"></div>
+  <div class="star star-position7"></div>
+</div>
+<div class="box-of-star2">
+  <div class="star star-position1"></div>
+  <div class="star star-position2"></div>
+  <div class="star star-position3"></div>
+  <div class="star star-position4"></div>
+  <div class="star star-position5"></div>
+  <div class="star star-position6"></div>
+  <div class="star star-position7"></div>
+</div>
+<div class="box-of-star3">
+  <div class="star star-position1"></div>
+  <div class="star star-position2"></div>
+  <div class="star star-position3"></div>
+  <div class="star star-position4"></div>
+  <div class="star star-position5"></div>
+  <div class="star star-position6"></div>
+  <div class="star star-position7"></div>
+</div>
+<div class="box-of-star4">
+  <div class="star star-position1"></div>
+  <div class="star star-position2"></div>
+  <div class="star star-position3"></div>
+  <div class="star star-position4"></div>
+  <div class="star star-position5"></div>
+  <div class="star star-position6"></div>
+  <div class="star star-position7"></div>
+</div>
+  </div>
+  `;
+    document.body.appendChild(snowDiv);
+    const snowStyle = document.createElement('style');
+    snowStyle.innerHTML = `
+#snow-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@keyframes snow {
+  0% {
+    opacity: 0;
+    transform: translateY(0px);
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(650px);
+  }
+}
+
+.box-of-star1,
+.box-of-star2,
+.box-of-star3,
+.box-of-star4 {
+  width: 100%;
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  top: 0;
+  transform: translateY(0px);
+  height: 700px;
+}
+
+.box-of-star1 {
+  animation: snow 5s linear infinite;
+}
+
+.box-of-star2 {
+  animation: snow 5s -1.64s linear infinite;
+}
+
+.box-of-star3 {
+  animation: snow 5s -2.30s linear infinite;
+}
+
+.box-of-star4 {
+  animation: snow 5s -3.30s linear infinite;
+}
+
+.star {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background-color: #FAFAF0;
+  position: absolute;
+  z-index: 10;
+  opacity: 0.7;
+}
+
+.star:before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #FAFAF0;
+  position: absolute;
+  z-index: 10;
+  top: 80px;
+  left: 70px;
+  opacity: .7;
+}
+
+.star:after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #FAFAF0;
+  position: absolute;
+  z-index: 10;
+  top: 8px;
+  left: 170px;
+  opacity: .9;
+}
+
+.star-position1 {
+  top: 30px;
+  left: 20px;
+}
+
+.star-position2 {
+  top: 110px;
+  left: 250px;
+}
+
+.star-position3 {
+  top: 60px;
+  left: 570px;
+}
+
+.star-position4 {
+  top: 120px;
+  left: 900px;
+}
+
+.star-position5 {
+  top: 20px;
+  left: 1120px;
+}
+
+.star-position6 {
+  top: 90px;
+  left: 1280px;
+}
+
+.star-position7 {
+  top: 30px;
+  left: 1480px;
+}
+`;
+    document.head.appendChild(snowStyle);
+    hasSnow = true;
+  }
+  // snow
   const config = getConfig();
   decorateImageLinks(el);
   const anchors = el.getElementsByTagName('a');
