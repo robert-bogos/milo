@@ -1271,20 +1271,6 @@ align-items: center;
 background: rgb(0, 0, 0, 0.1);
 }
 
-.text {
-  position: absolute;
-  bottom: 20px;
-  left: 25px;
-  color: black;
-  font-family: Arial,sans-serif;
-  text-transform: uppercase;
-  font-size: 14px;
-  line-height: 28px;
-  font-weight: bold;
-  letter-spacing: 2px;
-  z-index: 99
-}
-
 .vader {
   position: absolute;
   top: 40%;
