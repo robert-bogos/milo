@@ -1205,6 +1205,9 @@ async function processSection(section, config, isDoc) {
 export async function loadArea(area = document) {
   const isDoc = area === document;
 
+  // eslint-disable-next-line
+  if (isDoc) document.querySelectorAll('img[alt="decorative"]').forEach((img) => img.alt = '');
+
   if (isDoc) {
     await checkForPageMods();
     appendHtmlToCanonicalUrl();

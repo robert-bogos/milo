@@ -55,11 +55,6 @@ function handleDelay(time, section) {
   setTimeout(() => { section.classList.remove('hide-sticky-section'); }, getDelayTime(time));
 }
 
-function handleDecorativeImages(text, section) {
-  const images = Array.from(section.querySelectorAll('img')).filter((img) => !img.src.includes('/fragments/'));
-  images.forEach((img, i) => text.split(',').map((index) => Number(index)).includes(i + 1) && (img.alt = ''));
-}
-
 export const getMetadata = (el) => [...el.childNodes].reduce((rdx, row) => {
   if (row.children) {
     const key = row.children[0].textContent.trim().toLowerCase();
@@ -78,5 +73,4 @@ export default async function init(el) {
   if (metadata.layout) handleLayout(metadata.layout.text, section);
   if (metadata.masonry) handleMasonry(metadata.masonry.text, section);
   if (metadata.delay) handleDelay(metadata.delay.text, section);
-  if (metadata['decorative images']) handleDecorativeImages(metadata['decorative images'].text, section);
 }
