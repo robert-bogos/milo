@@ -47,6 +47,7 @@ class LiteYTEmbed extends HTMLElement {
     const params = new URLSearchParams(this.getAttribute('params') || []);
     params.append('autoplay', '1');
     params.append('playsinline', '1');
+    params.append('mute', '1');
 
     if (this.needsYTApiForAutoplay) {
       await LiteYTEmbed.loadYouTubeAPI();
@@ -58,7 +59,6 @@ class LiteYTEmbed extends HTMLElement {
         allow: 'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
         allowfullscreen: true,
         title: this.playLabel,
-        muted: true,
       });
     } else {
       const iframeEl = createTag('iframe', {
