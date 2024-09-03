@@ -58,6 +58,7 @@ class LiteYTEmbed extends HTMLElement {
         allow: 'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
         allowfullscreen: true,
         title: this.playLabel,
+        muted: true,
       });
     } else {
       const iframeEl = createTag('iframe', {
