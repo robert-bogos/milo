@@ -60,7 +60,10 @@ class LiteVimeo extends HTMLElement {
       src: `https://player.vimeo.com/video/${encodeURIComponent(this.videoId)}?autoplay=1`,
     });
     this.insertAdjacentElement('afterend', iframeEl);
-    iframeEl.addEventListener('load', () => iframeEl.focus(), { once: true });
+    iframeEl.addEventListener('load', () => {
+      iframeEl.focus();
+      iframeEl.play();
+    }, { once: true });
     this.remove();
   }
 }
