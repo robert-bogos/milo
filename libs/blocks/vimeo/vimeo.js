@@ -57,13 +57,10 @@ class LiteVimeo extends HTMLElement {
       title: 'Content from Vimeo',
       allow: 'accelerometer; fullscreen; autoplay; encrypted-media; gyroscope; picture-in-picture',
       allowFullscreen: true,
-      src: `https://player.vimeo.com/video/${encodeURIComponent(this.videoId)}?autoplay=1`,
+      src: `https://player.vimeo.com/video/${encodeURIComponent(this.videoId)}?autoplay=1&muted=1`,
     });
     this.insertAdjacentElement('afterend', iframeEl);
-    iframeEl.addEventListener('load', () => {
-      iframeEl.focus();
-      iframeEl.play();
-    }, { once: true });
+    iframeEl.addEventListener('load', () => iframeEl.focus(), { once: true });
     this.remove();
   }
 }
