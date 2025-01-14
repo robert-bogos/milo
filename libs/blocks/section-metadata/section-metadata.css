@@ -242,6 +242,7 @@ main > .section[class*='-up'] > .content {
 .fill-sticky-section > div.notification.pill {
   width: 100%;
   border-radius: 0;
+  max-inline-size: unset;
 }
 
 /* mobile only */
