@@ -378,7 +378,7 @@ function applyInViewPortPlay(video) {
   }
 }
 
-export function decorateMultiViewport(el) {
+export function decorateMultiViewport(el, fixedContent) {
   const foreground = el.querySelector('.foreground');
   const cols = foreground.childElementCount;
   if (cols === 2 || cols === 3) {
@@ -392,7 +392,7 @@ export function decorateMultiViewport(el) {
       const mq = window.matchMedia(viewports[index]);
       const setContent = () => mq.matches && foreground.replaceChildren(child);
       setContent();
-      mq.addEventListener('change', setContent);
+      if (!fixedContent) mq.addEventListener('change', setContent);
     });
   }
   return foreground;

@@ -175,6 +175,6 @@ export default async function init(el) {
   el.querySelectorAll('a:not([class])').forEach((staticLink) => staticLink.classList.add('static'));
   if (el.matches(`:is(.${ribbon}, .${pill})`)) {
     wrapCopy(blockText);
-    decorateMultiViewport(el);
+    decorateMultiViewport(el, true);
   }
 }
