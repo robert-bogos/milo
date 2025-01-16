@@ -570,11 +570,6 @@
   flex-shrink: 0;
 }
 
-.aside.promobar .promo-text.desktop-up,
-.aside.promobar .promo-text.tablet-up {
-  display: none;
-}
-
 .aside.promobar .promo-text.mobile-up {
   display: flex;
 }
@@ -932,11 +927,6 @@
     gap: var(--spacing-xxs);
   }
 
-  .aside.promobar .promo-text.mobile-up,
-  .aside.promobar .promo-text.desktop-up {
-    display: none;
-  }
-
   .aside.promobar .promo-text.tablet-up {
     display: flex;
   }
@@ -1183,11 +1173,6 @@
   .aside.promobar .promo-text .action-area {
     gap: var(--spacing-s);
     flex-wrap: nowrap;
-  }
-
-  .aside.promobar .promo-text.mobile-up,
-  .aside.promobar .promo-text.tablet-up {
-    display: none;
   }
 
   .aside.promobar .promo-text.desktop-up {

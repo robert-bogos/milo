@@ -144,13 +144,27 @@ function combineTextBocks(textBlocks, iconArea, viewPort, variant) {
   contentArea.appendChild(textArea);
 }
 
+function getViewport() {
+  const width = window.innerWidth;
+  if (width >= 1200) return 'desktop-up';
+  if (width >= 600) return 'tablet-up';
+  return 'mobile-up';
+}
+
 function decoratePromobar(el) {
   const viewports = ['mobile-up', 'tablet-up', 'desktop-up'];
   const foreground = el.querySelector('.foreground');
   const variant = el.classList.contains('popup') ? 'popup' : 'default';
   if (foreground.childElementCount !== 3) checkViewportPromobar(foreground);
+
+  const currentViewport = getViewport();
   [...foreground.children].forEach((child, index) => {
-    child.className = viewports[index];
+    const viewport = viewports[index];
+    if (viewport !== currentViewport) {
+      child.remove();
+      return;
+    }
+    child.className = viewport;
     child.classList.add('promo-text');
     const textBlocks = [...child.children];
     const iconArea = child.querySelector('picture')?.closest('p');
@@ -158,7 +172,7 @@ function decoratePromobar(el) {
     if (iconArea) textBlocks.shift();
     if (actionArea.length) textBlocks.pop();
     if (!(textBlocks.length || iconArea || actionArea.length)) child.classList.add('hide-block');
-    else if (textBlocks.length) combineTextBocks(textBlocks, iconArea, viewports[index], variant);
+    else if (textBlocks.length) combineTextBocks(textBlocks, iconArea, viewport, variant);
   });
   if (variant === 'popup') addCloseButton(el);
   return foreground;
