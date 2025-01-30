@@ -25,11 +25,19 @@ function promoIntersectObserve(el, stickySectionEl, options = {}) {
       }
 
       const abovePromoStart = (entry.target === stickySectionEl && entry.isIntersecting)
-        || stickySectionEl?.getBoundingClientRect().y > 0;
+      || stickySectionEl?.getBoundingClientRect().y > 0;
 
       if (entry.target === document.querySelector('footer')) {
-        el.classList.toggle('fill-sticky-section', entry.isIntersecting);
-      } else el.classList.toggle('hide-sticky-section', abovePromoStart);
+        if (entry.isIntersecting) {
+          el.classList.add('fill-sticky-section');
+        } else {
+          el.classList.remove('fill-sticky-section');
+        }
+      } else if (abovePromoStart) {
+        el.classList.remove('hide-sticky-section');
+      } else {
+        el.classList.add('hide-sticky-section');
+      }
     });
   }, options);
   return io;
