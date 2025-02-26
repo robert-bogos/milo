@@ -1430,7 +1430,7 @@ async function resolveInlineFrags(section) {
   section.blocks = newlyDecoratedSection.blocks;
   section.preloadLinks = newlyDecoratedSection.preloadLinks;
 }
-//
+
 async function processSection(section, config, isDoc) {
   await resolveInlineFrags(section);
   const firstSection = section.el.dataset.idx === '0';
