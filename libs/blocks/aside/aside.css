@@ -616,8 +616,15 @@
 
 .aside.promobar.popup .promo-text .text-area {
   margin-top: var(--spacing-m);
+  position: relative;
 }
 
+.text-area .icon-area {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: -30px;
+}
 .aside.promobar.popup .promo-text .icon-area+.text-area {
   margin-top: 0;
 }

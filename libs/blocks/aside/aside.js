@@ -152,6 +152,8 @@ function decoratePromobar(el) {
   [...foreground.children].forEach((child, index) => {
     child.className = viewports[index];
     child.classList.add('promo-text');
+    const miloTooltip = child.querySelector('.milo-tooltip')?.parentElement;
+    miloTooltip?.remove();
     const textBlocks = [...child.children];
     const iconArea = child.querySelector('picture')?.closest('p');
     const actionArea = child.querySelectorAll('em a, strong a, p > a strong');
@@ -159,6 +161,9 @@ function decoratePromobar(el) {
     if (actionArea.length) textBlocks.pop();
     if (!(textBlocks.length || iconArea || actionArea.length)) child.classList.add('hide-block');
     else if (textBlocks.length) combineTextBocks(textBlocks, iconArea, viewports[index], variant);
+    if (miloTooltip) {
+      child.querySelector('.text-area')?.appendChild(miloTooltip);
+    }
   });
   if (variant === 'popup') addCloseButton(el);
   return foreground;
