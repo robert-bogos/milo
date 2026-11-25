@@ -409,9 +409,9 @@ export function overallStatus(plan, verdicts) {
   if (plan.status === 'error') return 'inconclusive';
   if (plan.policy) return 'fail';
   if (verdicts.some((verdict) => verdict.status === 'fail')) return 'fail';
-  if (plan.status === 'skip') return 'skipped';
   if (verdicts.some((verdict) => verdict.status === 'inconclusive')
     || plan.pages?.some((page) => ['stale', 'error'].includes(page.status))) return 'inconclusive';
+  if (plan.status === 'skip') return 'skipped';
   return 'pass';
 }
 

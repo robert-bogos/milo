@@ -1,6 +1,11 @@
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import lighthouse from 'lighthouse';
 import { getChromePath, launch } from 'chrome-launcher';
 import desktopConfig from 'lighthouse/core/config/desktop-config.js';
+
+const DISCOVER_WORKER = fileURLToPath(new URL('./discover-worker.js', import.meta.url));
+const DISCOVERY_TIMEOUT_MS = 180000;
 
 const MEASURE_AUDITS = [
   'largest-contentful-paint',
@@ -97,6 +102,27 @@ export async function lighthouseRun(url, { config, discovery = false }) {
   }
 }
 
+// Lighthouse keeps its timing marks in process-wide state, so a run that finishes clears the marks
+// of every other run in the same process ("performance mark has not been set"). Concurrent
+// discovery loads therefore each get their own process.
+export function isolatedDiscoveryRun(url, config) {
+  return new Promise((resolve) => {
+    execFile(process.execPath, [DISCOVER_WORKER, url, JSON.stringify(config)], {
+      maxBuffer: 32 * 1024 * 1024,
+      timeout: DISCOVERY_TIMEOUT_MS,
+      // chrome-launcher closes its Chrome on SIGINT.
+      killSignal: 'SIGINT',
+    }, (error, stdout, stderr) => {
+      try {
+        resolve(JSON.parse(stdout.trim().split('\n').pop()));
+      } catch {
+        const detail = stderr.trim().split('\n').pop() || error?.message || 'no output';
+        resolve({ ok: false, error: `Discovery process failed: ${detail}`.slice(0, 300), libs: [] });
+      }
+    });
+  });
+}
+
 export async function discover(targets, { config, attempts = 2, log = () => {} }) {
   const results = {};
   const queue = [...targets];
@@ -105,7 +131,7 @@ export async function discover(targets, { config, attempts = 2, log = () => {} }
       const target = queue.shift();
       let sample;
       for (let attempt = 0; attempt < attempts && !sample?.ok; attempt += 1) {
-        sample = await lighthouseRun(target.url, { config, discovery: true });
+        sample = await isolatedDiscoveryRun(target.url, config);
       }
       log(`discovered ${target.key}: ${sample.ok ? `${sample.libs.length} /libs/ requests` : sample.error}`);
       results[target.key] = sample;
