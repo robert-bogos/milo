@@ -3450,3 +3450,4 @@ export function loadLana(options = {}) {
 }
 
 export const reloadPage = () => window.location.reload();
+// Fork-only wiring check for the per-PR performance workflow; no functional change.
