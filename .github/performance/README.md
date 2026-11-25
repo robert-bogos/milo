@@ -18,7 +18,8 @@ the change, and comments the result on the pull request. Design:
   pull request branch (`<branch>--milo--<owner>.aem.live`). Consumer pages get `?milolibs=`; Milo
   pages are loaded from the branch host.
 - The tooling and thresholds always come from the base branch, so a pull request cannot change its
-  own check.
+  own check. The check uses the base branch as it is when the check starts (GitHub's
+  `pull_request.base.sha` stays at the commit from when the pull request was opened).
 - Changes outside `libs/` (tests, docs, Nala, tooling) skip the check.
 
 ## When a page fails
@@ -42,8 +43,9 @@ A gated metric regresses when **both** are true for the valid pairs:
   or failed pairs. With fewer than 5 valid pairs the page is inconclusive (with 5 pairs the
   smallest possible p is 1/32, with 7 it is 1/128).
 - **Inconclusive never fails the check.** Causes: too few valid pairs, a missing or inconclusive
-  re-run, or the base branch changing files the page loads. If the base branch changed them after
-  the pull request branched, the page is not measured; update the branch.
+  re-run, a page that could not be loaded to check which files it uses, or the base branch changing
+  files the page loads. If the base branch changed them after the pull request branched, the page
+  is not measured; update the branch.
 
 ## Demo pages
 
