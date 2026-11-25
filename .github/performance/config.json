@@ -1,0 +1,44 @@
+{
+  "formFactor": "mobile",
+  "throttlingMethod": "simulate",
+  "martechOff": true,
+  "pairs": 7,
+  "extraPairs": 3,
+  "minPairs": 5,
+  "warmupRuns": 1,
+  "alpha": 0.05,
+  "benchmarkIndexRatio": 0.8,
+  "minBenchmarkIndex": 0,
+  "maxWaitForLoadMs": 35000,
+  "pageBudgetMinutes": 45,
+  "discoveryConcurrency": 3,
+  "maxDemoUrls": 2,
+  "metrics": {
+    "lcp": { "label": "LCP", "audit": "largest-contentful-paint", "unit": "ms", "gate": true, "relative": 0.1, "absolute": 0 },
+    "cls": { "label": "CLS", "audit": "cumulative-layout-shift", "unit": "", "gate": true, "relative": 0, "absolute": 0.005 },
+    "tbt": { "label": "TBT", "audit": "total-blocking-time", "unit": "ms", "gate": false, "relative": 0.2, "absolute": 50 },
+    "fcp": { "label": "FCP", "audit": "first-contentful-paint", "unit": "ms", "gate": false, "relative": 0.1, "absolute": 0 }
+  },
+  "greenBands": {
+    "lcp": { "value": 2500, "gate": false },
+    "cls": { "value": 0.1, "gate": true },
+    "tbt": { "value": 200, "gate": false }
+  },
+  "pages": [
+    { "id": "homepage", "label": "Homepage", "production": "https://www.adobe.com/", "url": "https://main--da-homepage--adobecom.aem.live/homepage/index-loggedout" },
+    { "id": "acrobat", "label": "Acrobat", "production": "https://www.adobe.com/acrobat.html", "url": "https://main--da-dc--adobecom.aem.live/acrobat" },
+    { "id": "photoshop", "label": "Photoshop", "production": "https://www.adobe.com/products/photoshop.html", "url": "https://main--da-cc--adobecom.aem.live/products/photoshop" },
+    { "id": "firefly", "label": "Firefly", "production": "https://www.adobe.com/products/firefly.html", "url": "https://main--da-cc--adobecom.aem.live/products/firefly" },
+    { "id": "acrobat-plans", "label": "Acrobat plans", "production": "https://www.adobe.com/acrobat/plans.html", "url": "https://main--da-dc--adobecom.aem.live/acrobat/plans" },
+    { "id": "cc-plans", "label": "Creative Cloud plans", "production": "https://www.adobe.com/creativecloud/plans.html", "url": "https://main--da-cc--adobecom.aem.live/creativecloud/plans" },
+    { "id": "firefly-plans", "label": "Firefly plans", "production": "https://www.adobe.com/products/firefly/plans.html", "url": "https://main--da-cc--adobecom.aem.live/products/firefly/plans" },
+    { "id": "special-offers", "label": "Special offers", "production": "https://www.adobe.com/products/special-offers.html", "url": "https://main--da-cc--adobecom.aem.live/products/special-offers" },
+    { "id": "cc-pro", "label": "Creative Cloud Pro", "production": "https://www.adobe.com/creativecloud/pro.html", "url": "https://main--da-cc--adobecom.aem.live/creativecloud/pro" },
+    { "id": "acrobat-studio", "label": "Acrobat Studio", "production": "https://www.adobe.com/acrobat/acrobat-studio.html", "url": "https://main--da-dc--adobecom.aem.live/acrobat/acrobat-studio" },
+    { "id": "pdf-essentials", "label": "PDF and document essentials", "production": "https://www.adobe.com/acrobat/pdf-and-document-essentials.html", "url": "https://main--da-dc--adobecom.aem.live/acrobat/pdf-and-document-essentials" },
+    { "id": "creativity-design", "label": "Creativity and design", "production": "https://www.adobe.com/creativecloud/creativity-and-design.html", "url": "https://main--da-cc--adobecom.aem.live/creativecloud/creativity-and-design" },
+    { "id": "firefly-landpa", "label": "Firefly landpa", "production": "https://www.adobe.com/products/firefly/landpa.html", "url": "https://main--da-cc--adobecom.aem.live/products/firefly/landpa" },
+    { "id": "premiere", "label": "Premiere", "production": "https://www.adobe.com/products/premiere.html", "url": "https://main--da-cc--adobecom.aem.live/products/premiere" },
+    { "id": "business", "label": "Adobe for Business", "production": "https://business.adobe.com/", "url": "https://main--da-bacom--adobecom.aem.live/" }
+  ]
+}

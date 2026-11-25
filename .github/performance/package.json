@@ -1,0 +1,17 @@
+{
+  "name": "milo-performance-check",
+  "private": true,
+  "description": "Per-PR before/after Lighthouse performance check for Milo",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@puppeteer/browsers": "3.2.6",
+    "chrome-launcher": "1.2.2",
+    "lighthouse": "13.6.0"
+  }
+}

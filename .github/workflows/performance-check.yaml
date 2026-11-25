@@ -1,0 +1,274 @@
+name: Performance check
+
+# Measures the Milo pages a pull request affects, before and after the change, and comments the
+# result. Off unless the repository variable PERF_CHECKS is "on". See .github/performance/README.md.
+on:
+  pull_request:
+    branches: [stage]
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+# A push or a description edit (demo URLs) restarts the check; other edits leave it running.
+concurrency:
+  group: performance-check-${{ github.event.pull_request.number }}-${{ github.event.action == 'edited' && !github.event.changes.body && !github.event.changes.base && github.run_id || 'latest' }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: perf-tooling/.github/performance
+
+env:
+  PERF_OUT_DIR: ${{ github.workspace }}/perf-output
+
+jobs:
+  plan:
+    name: Find affected pages
+    if: >-
+      vars.PERF_CHECKS == 'on' && !github.event.pull_request.draft
+      && (github.event.action != 'edited' || github.event.changes.body || github.event.changes.base)
+    runs-on: ${{ vars.PERF_RUNNER || 'gh-hosted' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      measure: ${{ steps.plan.outputs.measure }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      # The tooling comes from the base branch, so a pull request cannot change its own check.
+      - name: Check out the performance tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: perf-tooling
+          sparse-checkout: .github/performance
+          persist-credentials: false
+
+      # Only the git history is needed (changed files, merge base, committed file contents).
+      - name: Fetch the pull request history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: .github/performance
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: perf-tooling/.github/performance/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Set up Chrome
+        run: node cli.js chrome
+
+      - name: Find the pages that load the changed code
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PERF_REPO_DIR: ${{ github.workspace }}/pr
+        run: node cli.js plan
+
+      - name: Upload the plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: perf-plan
+          path: ${{ env.PERF_OUT_DIR }}/plan.json
+          retention-days: 14
+
+  measure:
+    name: Measure ${{ matrix.label }}
+    needs: plan
+    if: needs.plan.outputs.measure == 'true'
+    runs-on: ${{ vars.PERF_RUNNER || 'gh-hosted' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Check out the performance tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: perf-tooling
+          sparse-checkout: .github/performance
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: perf-tooling/.github/performance/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Set up Chrome
+        run: node cli.js chrome
+
+      - name: Measure before and after
+        env:
+          PERF_PAGE: ${{ toJSON(matrix) }}
+        run: node cli.js measure
+
+      - name: Upload the measurements
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: perf-r1-${{ matrix.id }}
+          path: ${{ env.PERF_OUT_DIR }}/result-*.json
+          retention-days: 14
+
+  triage:
+    name: Pick pages to re-measure
+    needs: [plan, measure]
+    if: ${{ !cancelled() && needs.plan.outputs.measure == 'true' }}
+    runs-on: ${{ vars.PERF_RUNNER || 'gh-hosted' }}
+    timeout-minutes: 10
+    outputs:
+      confirm: ${{ steps.triage.outputs.confirm }}
+      matrix: ${{ steps.triage.outputs.matrix }}
+    steps:
+      - name: Check out the performance tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: perf-tooling
+          sparse-checkout: .github/performance
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: perf-plan
+          path: ${{ runner.temp }}/plan
+
+      - name: Download the measurements
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: perf-r1-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/results
+
+      # Failing pages are measured again on a new runner; a failure counts only if it repeats.
+      - name: Pick failing pages
+        id: triage
+        env:
+          PERF_PLAN: ${{ runner.temp }}/plan/plan.json
+          PERF_RESULTS_DIR: ${{ runner.temp }}/results
+        run: node cli.js triage
+
+  confirm:
+    name: Re-measure ${{ matrix.label }}
+    needs: triage
+    if: ${{ !cancelled() && needs.triage.result == 'success' && needs.triage.outputs.confirm == 'true' }}
+    runs-on: ${{ vars.PERF_RUNNER || 'gh-hosted' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.triage.outputs.matrix) }}
+    steps:
+      - name: Check out the performance tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: perf-tooling
+          sparse-checkout: .github/performance
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: perf-tooling/.github/performance/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Set up Chrome
+        run: node cli.js chrome
+
+      - name: Measure before and after again
+        env:
+          PERF_PAGE: ${{ toJSON(matrix) }}
+        run: node cli.js measure
+
+      - name: Upload the measurements
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: perf-r2-${{ matrix.id }}
+          path: ${{ env.PERF_OUT_DIR }}/result-*.json
+          retention-days: 14
+
+  report:
+    name: Report
+    needs: [plan, measure, triage, confirm]
+    # Superseded runs are cancelled and must not overwrite the newer report.
+    if: ${{ !cancelled() && needs.plan.result != 'skipped' }}
+    runs-on: ${{ vars.PERF_RUNNER || 'gh-hosted' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out the performance tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: perf-tooling
+          sparse-checkout: .github/performance
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the plan
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: perf-plan
+          path: ${{ runner.temp }}/plan
+
+      - name: Download the measurements
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: perf-r*
+          merge-multiple: true
+          path: ${{ runner.temp }}/results
+
+      # Fork pull requests get a read-only token; the report is then only in the job summary.
+      - name: Report
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PERF_PLAN: ${{ runner.temp }}/plan/plan.json
+          PERF_RESULTS_DIR: ${{ runner.temp }}/results
+          PERF_ENFORCE: ${{ vars.PERF_ENFORCE }}
+        run: node cli.js report
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: perf-report
+          path: ${{ env.PERF_OUT_DIR }}/report.json
+          retention-days: 14
