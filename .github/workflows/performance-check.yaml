@@ -34,17 +34,24 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      base_sha: ${{ steps.base.outputs.sha }}
       measure: ${{ steps.plan.outputs.measure }}
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       # The tooling comes from the base branch, so a pull request cannot change its own check.
+      # The event's base.sha is the base branch when the pull request was opened, so the current
+      # tip is checked out instead and every later job uses that same commit.
       - name: Check out the performance tooling
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.ref }}
           path: perf-tooling
           sparse-checkout: .github/performance
           persist-credentials: false
+
+      - name: Record the base commit
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # Only the git history is needed (changed files, merge base, committed file contents).
       - name: Fetch the pull request history
@@ -74,6 +81,7 @@ jobs:
         id: plan
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PERF_BASE_SHA: ${{ steps.base.outputs.sha }}
           PERF_REPO_DIR: ${{ github.workspace }}/pr
         run: node cli.js plan
 
@@ -97,7 +105,7 @@ jobs:
       - name: Check out the performance tooling
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ needs.plan.outputs.base_sha || github.event.pull_request.base.ref }}
           path: perf-tooling
           sparse-checkout: .github/performance
           persist-credentials: false
@@ -141,7 +149,7 @@ jobs:
       - name: Check out the performance tooling
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ needs.plan.outputs.base_sha || github.event.pull_request.base.ref }}
           path: perf-tooling
           sparse-checkout: .github/performance
           persist-credentials: false
@@ -175,7 +183,7 @@ jobs:
 
   confirm:
     name: Re-measure ${{ matrix.label }}
-    needs: triage
+    needs: [plan, triage]
     if: ${{ !cancelled() && needs.triage.result == 'success' && needs.triage.outputs.confirm == 'true' }}
     runs-on: ${{ vars.PERF_RUNNER || 'gh-hosted' }}
     timeout-minutes: 60
@@ -186,7 +194,7 @@ jobs:
       - name: Check out the performance tooling
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ needs.plan.outputs.base_sha || github.event.pull_request.base.ref }}
           path: perf-tooling
           sparse-checkout: .github/performance
           persist-credentials: false
@@ -231,7 +239,7 @@ jobs:
       - name: Check out the performance tooling
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ needs.plan.outputs.base_sha || github.event.pull_request.base.ref }}
           path: perf-tooling
           sparse-checkout: .github/performance
           persist-credentials: false
