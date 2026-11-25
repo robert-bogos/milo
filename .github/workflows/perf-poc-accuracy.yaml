@@ -1,0 +1,120 @@
+name: Performance check accuracy (POC)
+
+# Proof of concept for robert-bogos/milo only; see .github/performance-poc/README.md.
+on:
+  push:
+    branches: [perf-poc-accuracy]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-poc-accuracy
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: .github/performance
+
+jobs:
+  matrix:
+    name: Plan the runs
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Build the matrix
+        id: matrix
+        working-directory: .
+        env:
+          AA_PAGES: >-
+            homepage acrobat photoshop firefly acrobat-plans cc-plans firefly-plans special-offers
+            cc-pro acrobat-studio pdf-essentials creativity-design firefly-landpa premiere business
+          REGRESSION_PAGES: homepage acrobat photoshop cc-plans business
+          REGRESSIONS: cpu250 cls
+        run: |
+          node -e '
+            const words = (name) => process.env[name].split(/\s+/).filter(Boolean);
+            const include = [];
+            for (const round of [1, 2]) {
+              words("AA_PAGES").forEach((page) => include.push({ page, scenario: "aa", round }));
+              words("REGRESSION_PAGES").forEach((page) => words("REGRESSIONS")
+                .forEach((scenario) => include.push({ page, scenario, round })));
+            }
+            console.log(`matrix=${JSON.stringify({ include })}`);
+          ' >> "$GITHUB_OUTPUT"
+
+  measure:
+    name: ${{ matrix.page }} ${{ matrix.scenario }} round ${{ matrix.round }}
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
+    steps:
+      - name: Check out the tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/performance
+            .github/performance-poc
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: .github/performance/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Set up Chrome
+        run: node cli.js chrome
+
+      - name: Measure
+        env:
+          POC_PAGE: ${{ matrix.page }}
+          POC_SCENARIO: ${{ matrix.scenario }}
+          POC_ROUND: ${{ matrix.round }}
+          POC_OUT: ${{ github.workspace }}/accuracy/${{ matrix.page }}-${{ matrix.scenario }}-r${{ matrix.round }}.jsonl
+        run: node ../performance-poc/accuracy.mjs "$POC_PAGE" "$POC_SCENARIO"
+
+      - name: Upload the result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: accuracy-${{ matrix.page }}-${{ matrix.scenario }}-r${{ matrix.round }}
+          path: ${{ github.workspace }}/accuracy/
+          retention-days: 14
+
+  summary:
+    name: Summarize
+    needs: measure
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/performance
+            .github/performance-poc
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: accuracy-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/accuracy
+
+      - name: Summarize
+        run: node ../performance-poc/summarize.mjs "$RUNNER_TEMP/accuracy"
