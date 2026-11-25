@@ -210,7 +210,9 @@ async function buildPlan(result, event) {
   }
   result.status = result.entries.length ? 'measure' : 'skip';
   if (!result.entries.length && !result.policy) {
-    result.reason = 'None of the tested pages load the changed files.';
+    result.reason = result.pages.some((page) => ['stale', 'error'].includes(page.status))
+      ? 'No page was measured. The pages marked ⚠️ below could not be checked.'
+      : 'None of the tested pages load the changed files.';
   }
 }
 
