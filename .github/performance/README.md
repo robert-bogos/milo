@@ -42,8 +42,9 @@ A gated metric regresses when **both** are true for the valid pairs:
   or failed pairs. With fewer than 5 valid pairs the page is inconclusive (with 5 pairs the
   smallest possible p is 1/32, with 7 it is 1/128).
 - **Inconclusive never fails the check.** Causes: too few valid pairs, a missing or inconclusive
-  re-run, or the base branch changing files the page loads. If the base branch changed them after
-  the pull request branched, the page is not measured; update the branch.
+  re-run, a page that could not be loaded to check which files it uses, or the base branch changing
+  files the page loads. If the base branch changed them after the pull request branched, the page
+  is not measured; update the branch.
 
 ## Demo pages
 
