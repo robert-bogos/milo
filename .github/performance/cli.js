@@ -72,7 +72,7 @@ async function servedError(result, runtime, pr) {
   }
   const sides = [
     { name: 'after', origin: result.bLibs, sha: pr.head.sha, repo: pr.head.repo.full_name, ref: pr.head.ref },
-    { name: 'before', origin: result.aLibs, sha: pr.base.sha, repo: pr.base.repo.full_name, ref: pr.base.ref },
+    { name: 'before', origin: result.aLibs, sha: result.baseSha, repo: pr.base.repo.full_name, ref: pr.base.ref },
   ];
   const checks = await Promise.all(sides.map(async (side) => ({
     side,
@@ -98,7 +98,7 @@ function hasNewBlock(page, newBlocks) {
 async function buildPlan(result, event) {
   const pr = event.pull_request;
   if (!pr.head.repo) throw new Error('the head repository is no longer available');
-  result.mergeBase = git(['merge-base', pr.base.sha, pr.head.sha]).trim();
+  result.mergeBase = git(['merge-base', result.baseSha, pr.head.sha]).trim();
   const changes = classifyChanges(
     parseNameStatus(git(['diff', '--name-status', '--no-renames', result.mergeBase, pr.head.sha])),
     { blockExistedAtBase: (dir) => gitHas(result.mergeBase, dir) },
@@ -122,7 +122,7 @@ async function buildPlan(result, event) {
     result.reason = `The branch name is too long for an aem.live preview: <branch>--${pr.head.repo.name}--${pr.head.repo.owner.login} must be at most 63 characters.`;
     return;
   }
-  result.drift = git(['diff', '--name-only', '--no-renames', result.mergeBase, pr.base.sha])
+  result.drift = git(['diff', '--name-only', '--no-renames', result.mergeBase, result.baseSha])
     .split('\n').filter(isRuntimePath);
   const notServed = await servedError(result, changes.runtime, pr);
   if (notServed) {
@@ -224,7 +224,8 @@ async function createPlan() {
     pullRequest: pr.number,
     baseRef: pr.base.ref,
     headRef: pr.head.ref,
-    baseSha: pr.base.sha,
+    // The event's base.sha is from when the PR was opened; the workflow passes the current tip.
+    baseSha: env.PERF_BASE_SHA || pr.base.sha,
     headSha: pr.head.sha,
     status: 'skip',
     reason: '',
