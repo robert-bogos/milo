@@ -367,4 +367,16 @@ describe('renderReport', () => {
     assert.equal(policy.status, 'fail');
     assert.match(policy.body, /### ❌ Demo page needed/);
   });
+
+  it('is inconclusive, not skipped, when no page was measured but some could not be checked', () => {
+    const skipped = { status: 'skip', entries: [], pages: [{ label: 'Homepage', status: 'unaffected' }] };
+    assert.equal(renderReport({ plan: skipped, config }).status, 'skipped');
+    const errored = { ...skipped, pages: [...skipped.pages, { label: 'Premiere', status: 'error', reason: 'timeout' }] };
+    const report = renderReport({ plan: errored, config });
+    assert.equal(report.status, 'inconclusive');
+    assert.match(report.body, /### ⚠️ Performance check inconclusive/);
+    assert.match(report.body, /Premiere: could not be checked \(timeout\)/);
+    const stale = { ...skipped, pages: [{ label: 'Homepage', status: 'stale', drift: ['/libs/utils/utils.js'] }] };
+    assert.equal(renderReport({ plan: stale, config }).status, 'inconclusive');
+  });
 });
