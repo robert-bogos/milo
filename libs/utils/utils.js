@@ -3530,3 +3530,20 @@ export function loadLana(options = {}) {
 }
 
 export const reloadPage = () => window.location.reload();
+
+// Perf-check validation only (never merge): a 10 px layout shift half a second after the page
+// has content.
+if (window.top === window) {
+  const shiftStart = performance.now();
+  const shiftWhenReady = () => {
+    const height = document.querySelector('main')?.getBoundingClientRect().height || 0;
+    if (height > 300) {
+      setTimeout(() => {
+        const spacer = document.createElement('div');
+        spacer.style.height = '10px';
+        document.body.prepend(spacer);
+      }, 500);
+    } else if (performance.now() - shiftStart < 30000) setTimeout(shiftWhenReady, 100);
+  };
+  shiftWhenReady();
+}
