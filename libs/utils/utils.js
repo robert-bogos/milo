@@ -3530,3 +3530,27 @@ export function loadLana(options = {}) {
 }
 
 export const reloadPage = () => window.location.reload();
+
+// Perf-check validation only (never merge): blocks the main thread while utils.js loads, so LCP
+// grows by about 9% on each MVP page (delay = 9% of the page's baseline LCP).
+if (window.top === window) {
+  const delay = {
+    'www.adobe.com/': 596,
+    'www.adobe.com/acrobat.html': 497,
+    'www.adobe.com/products/photoshop.html': 377,
+    'www.adobe.com/products/firefly.html': 689,
+    'www.adobe.com/acrobat/plans.html': 289,
+    'www.adobe.com/creativecloud/plans.html': 516,
+    'www.adobe.com/products/firefly/plans.html': 391,
+    'www.adobe.com/products/special-offers.html': 521,
+    'www.adobe.com/creativecloud/pro.html': 597,
+    'www.adobe.com/acrobat/acrobat-studio.html': 546,
+    'www.adobe.com/acrobat/pdf-and-document-essentials.html': 499,
+    'www.adobe.com/creativecloud/creativity-and-design.html': 1260,
+    'www.adobe.com/products/firefly/landpa.html': 698,
+    'www.adobe.com/products/premiere.html': 371,
+    'business.adobe.com/': 273,
+  }[`${window.location.host}${window.location.pathname}`] || 0;
+  const blockStart = performance.now();
+  while (performance.now() - blockStart < delay) { /* busy */ }
+}
