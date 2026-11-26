@@ -34,6 +34,7 @@
 }
 
 .dialog-modal > .fragment {
+  isolation: isolate;
   overflow-y: auto;
   max-height: var(--modal-max-height);
 }
@@ -71,7 +72,7 @@
   position: relative;
 }
 
-.aup-modal .aup-workflow-content.loading > iframe {
+.aup-modal .aup-workflow-content.loading > :not(.aup-loading-indicator) {
   visibility: hidden;
 }
 

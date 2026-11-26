@@ -43,14 +43,3 @@ export async function upsertComment({
 export async function pullRequest({ repository, number, token, fetchImpl }) {
   return request(`/repos/${repository}/pulls/${number}`, { token, fetchImpl });
 }
-
-export async function branchHead({ repository, branch, token, fetchImpl }) {
-  const result = await request(`/repos/${repository}/branches/${encodeURIComponent(branch)}`, { token, fetchImpl });
-  return result.commit.sha;
-}
-
-export async function changedFiles({ repository, base, head, token, fetchImpl }) {
-  const result = await request(`/repos/${repository}/compare/${base}...${head}?per_page=100`, { token, fetchImpl });
-  return (result.files || [])
-    .flatMap((file) => [file.filename, file.previous_filename].filter(Boolean));
-}

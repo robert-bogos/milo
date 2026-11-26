@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import {
-  classifyChanges, classifyPage, confirmVerdict, evaluateResult, expectedLibsOrigin, isRuntimePath,
-  libsPaths, loadConfig, measureEntry, parseDemoUrls, parseNameStatus, previewOrigin, renderReport,
-  servedCheckPaths, validateDemoUrl, variantHostError, variantUrl, verifyServed,
+  classifyChanges, classifyPage, confirmVerdict, evaluateResult, isRuntimePath, loadConfig, pageUrl,
+  parseDemoUrls, parseNameStatus, planSources, renderReport, validateDemoUrl,
 } from './core.js';
-import { branchHead, changedFiles, pullRequest, upsertComment } from './github.js';
+import { pullRequest, upsertComment } from './github.js';
+import { createGit, existingPaths, fetchProduction, materializeSources } from './sources.js';
 
 const { env } = process;
 const config = loadConfig();
@@ -15,8 +14,8 @@ const outDir = env.PERF_OUT_DIR || 'perf-output';
 const token = env.GITHUB_TOKEN;
 // Chrome and git inherit the environment; they never need the token.
 delete env.GITHUB_TOKEN;
-const MAX_VERIFIED_FILES = 15;
 const log = (message) => console.log(message);
+const git = createGit(env.PERF_REPO_DIR || '.');
 
 function readJson(file) {
   return JSON.parse(readFileSync(file, 'utf8'));
@@ -29,23 +28,6 @@ function writeJson(file, data) {
 
 function setOutput(name, value) {
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `${name}=${value}\n`);
-}
-
-function git(args, encoding = 'utf8') {
-  return execFileSync('git', args, { cwd: env.PERF_REPO_DIR || '.', encoding, maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-}
-
-function gitHas(sha, path) {
-  try {
-    git(['cat-file', '-e', `${sha}:${path}`]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function gitFile(sha, path) {
-  return gitHas(sha, path) ? git(['show', `${sha}:${path}`], 'buffer') : null;
 }
 
 async function currentBody(event) {
@@ -64,35 +46,11 @@ async function currentBody(event) {
   return event.pull_request.body || '';
 }
 
-// Both preview hosts must serve exactly the committed files, or the comparison is meaningless.
-async function servedError(result, runtime, pr) {
-  const { paths, truncated } = servedCheckPaths(runtime, { max: MAX_VERIFIED_FILES });
-  if (truncated) {
-    result.notes.push(`Only the first ${MAX_VERIFIED_FILES} changed files were checked on aem.live.`);
-  }
-  const sides = [
-    { name: 'after', origin: result.bLibs, sha: pr.head.sha, repo: pr.head.repo.full_name, ref: pr.head.ref },
-    { name: 'before', origin: result.aLibs, sha: result.baseSha, repo: pr.base.repo.full_name, ref: pr.base.ref },
-  ];
-  const checks = await Promise.all(sides.map(async (side) => ({
-    side,
-    ...await verifyServed(
-      paths.map((path) => ({ path, expected: gitFile(side.sha, path) })),
-      { origin: side.origin },
-    ),
-  })));
-  const failed = checks.find((check) => !check.ok);
-  if (!failed) return null;
-  const { side, mismatches } = failed;
-  if (mismatches.every((item) => item.endsWith('(HTTP 404)'))) {
-    return `The ${side.name} code is not served at ${side.origin}. Install the AEM Code Sync GitHub app (https://github.com/apps/aem-code-sync) on ${side.repo} and finish its setup on tools.aem.live so ${side.ref} is published to aem.live.`;
-  }
-  return `The ${side.name} code at ${side.origin} does not match ${side.ref} (${side.sha.slice(0, 7)}): ${mismatches.slice(0, 3).join(', ')}. AEM Code Sync may be delayed; re-run the check. If it keeps failing, aem.live has an older copy of the branch: normal pushes only copy the changed files, while creating or force-pushing the branch copies all of them.`;
-}
-
+// Hits are lowercase. Discovery also lists 404s, so production pages that already use an
+// unreleased block show its files.
 function hasNewBlock(page, newBlocks) {
-  return page.hits.some((path) => newBlocks.some((name) => path.startsWith(`/libs/blocks/${name}/`)
-    || path.startsWith(`/libs/c2/blocks/${name}/`)));
+  return page.hits.some((path) => newBlocks.map((name) => name.toLowerCase())
+    .some((name) => path.startsWith(`/libs/blocks/${name}/`) || path.startsWith(`/libs/c2/blocks/${name}/`)));
 }
 
 async function buildPlan(result, event) {
@@ -101,7 +59,7 @@ async function buildPlan(result, event) {
   result.mergeBase = git(['merge-base', result.baseSha, pr.head.sha]).trim();
   const changes = classifyChanges(
     parseNameStatus(git(['diff', '--name-status', '--no-renames', result.mergeBase, pr.head.sha])),
-    { blockExistedAtBase: (dir) => gitHas(result.mergeBase, dir) },
+    { blockExistedAtBase: (dir) => existingPaths(git, result.mergeBase, [dir]).size > 0 },
   );
   result.changed = changes.paths;
   result.newBlocks = changes.newBlocks;
@@ -110,30 +68,39 @@ async function buildPlan(result, event) {
     return;
   }
 
-  const originOf = ({ ref, repo }) => previewOrigin({
-    ref,
-    repo: repo.name,
-    owner: repo.owner.login,
-  });
-  result.aLibs = originOf(pr.base);
-  result.bLibs = originOf(pr.head);
-  if (!result.aLibs || !result.bLibs) {
-    result.status = 'error';
-    result.reason = `The branch name is too long for an aem.live preview: <branch>--${pr.head.repo.name}--${pr.head.repo.owner.login} must be at most 63 characters.`;
-    return;
-  }
-  result.drift = git(['diff', '--name-only', '--no-renames', result.mergeBase, result.baseSha])
+  const { repository, branch } = config.production;
+  result.productionSha = fetchProduction(git, { url: `https://github.com/${repository}.git`, branch });
+  const drift = git(['diff', '--name-only', '--no-renames', result.productionSha, result.mergeBase])
     .split('\n').filter(isRuntimePath);
-  const notServed = await servedError(result, changes.runtime, pr);
-  if (notServed) {
+  const inspected = [...new Set([...drift, ...changes.files])];
+  const existsAtBase = existingPaths(git, result.mergeBase, inspected);
+  const sources = planSources({
+    changed: changes.files,
+    drift,
+    existsAtBase,
+    existsAtHead: existingPaths(git, pr.head.sha, changes.files),
+  });
+  const swapped = new Set([...Object.keys(sources.before), ...Object.keys(sources.after)]).size;
+  const { unsupported, deleted } = sources;
+  result.sources = { drift: drift.length, swapped, unsupported, deleted };
+  if (swapped > config.maxSourceFiles) {
     result.status = 'error';
-    result.reason = notServed;
+    result.reason = `${swapped} Milo files would have to be swapped into production pages (at most ${config.maxSourceFiles}). Update the branch from ${pr.base.ref} and re-run the check.`;
     return;
   }
+  const atProduction = existingPaths(git, result.productionSha, changes.files);
+  result.unreleased = changes.files
+    .filter((path) => existsAtBase.has(path) && !atProduction.has(path));
+  const { files } = materializeSources(git, {
+    sources,
+    revisions: { base: result.mergeBase, head: pr.head.sha },
+    dir: join(outDir, 'sources'),
+    log,
+  });
+  log(`Swapping ${swapped} files (${files} versions): ${drift.length} differ between production and the merge base.`);
 
-  const allowDraft = changes.newBlocks.length > 0;
   parseDemoUrls(await currentBody(event)).forEach((value) => {
-    const { url, error } = validateDemoUrl(value, { allowDraft });
+    const { url, error } = validateDemoUrl(value);
     if (error) result.demo.rejected.push({ url: value, reason: error });
     else if (result.demo.urls.length >= config.maxDemoUrls) {
       result.demo.rejected.push({ url: value, reason: `only ${config.maxDemoUrls} demo pages are measured` });
@@ -142,52 +109,32 @@ async function buildPlan(result, event) {
 
   const pages = [
     ...config.pages.map((page) => ({ ...page, kind: 'mvp' })),
-    ...result.demo.urls.map((url, index) => ({ id: `demo-${index + 1}`, label: `Demo ${index + 1}`, production: url, url, kind: 'demo' })),
+    ...result.demo.urls.map((url, index) => ({ id: `demo-${index + 1}`, label: `Demo ${index + 1}`, url, kind: 'demo' })),
   ];
-  const options = { martechOff: config.martechOff };
-  const libsOrigin = (page, variant) => expectedLibsOrigin(page.url, result[`${variant}Libs`]);
-  const targets = pages.flatMap((page) => ['a', 'b'].map((variant) => ({
-    key: `${page.id}:${variant}`,
-    url: variantUrl(page.url, result[`${variant}Libs`], options),
-  })));
   const { discover } = await import('./runner.js');
-  const found = await discover(targets, { config, log });
-
+  const found = await discover(
+    pages.map((page) => ({ key: page.id, url: pageUrl(page.url, config) })),
+    { config, log },
+  );
+  const unswappable = unsupported.map((path) => `/${path}`.toLowerCase());
   result.pages = pages.map((page) => {
-    const discovery = {};
-    ['a', 'b'].forEach((variant) => {
-      const sample = found[`${page.id}:${variant}`];
-      const expected = libsOrigin(page, variant);
-      const other = libsOrigin(page, variant === 'a' ? 'b' : 'a');
-      const hostError = sample?.ok ? variantHostError(sample.libs, expected, other) : null;
-      discovery[variant] = {
-        ok: Boolean(sample?.ok && !hostError),
-        error: hostError || sample?.error,
-        paths: libsPaths(sample?.libs, expected),
-      };
-    });
-    const verdict = classifyPage({
-      discovery,
+    let verdict = classifyPage({
+      discovery: found[page.id],
+      origin: new URL(page.url).origin,
       changedPaths: result.changed,
-      driftPaths: result.drift,
+      unsupported: unswappable,
     });
-    const loaded = verdict.status === 'measure'
-      ? [...new Set([...discovery.a.paths, ...discovery.b.paths])] : undefined;
-    return {
-      id: page.id,
-      label: page.label,
-      kind: page.kind,
-      production: page.production,
-      url: page.url,
-      ...verdict,
-      loaded,
-    };
+    // Production cannot reveal which pages load files that are not released yet.
+    if (page.kind === 'demo' && verdict.status === 'unaffected' && result.unreleased.length) {
+      verdict = { status: 'measure', hits: [] };
+    }
+    return { id: page.id, label: page.label, kind: page.kind, url: page.url, ...verdict };
   });
 
   const mvp = result.pages.filter((page) => page.kind === 'mvp');
-  const mvpAffected = mvp.some((page) => ['measure', 'stale'].includes(page.status));
+  const mvpAffected = mvp.some((page) => page.status === 'measure');
   if (!mvpAffected && !mvp.some((page) => page.status === 'error') && !result.demo.urls.length) {
-    result.policy = 'None of the MVP pages load the changed code. Add a live page that uses it to the pull request description, for example `Demo: https://main--<site>--adobecom.aem.live/<page>`. Editing the description re-runs the check.';
+    result.policy = 'None of the MVP pages load the changed code. Add a page that uses it to the pull request description, for example `Demo: https://www.adobe.com/<page>.html` or a published `Demo: https://main--milo--adobecom.aem.live/drafts/<page>`. Editing the description re-runs the check.';
   }
   result.entries = result.pages.filter((page) => page.status === 'measure').map((page) => {
     const afterOnly = page.kind === 'demo' && hasNewBlock(page, result.newBlocks);
@@ -197,12 +144,7 @@ async function buildPlan(result, event) {
       kind: afterOnly ? 'after-only' : 'compare',
       gate: page.kind === 'mvp' || afterOnly || !mvpAffected,
       round: 1,
-      production: page.production,
       url: page.url,
-      a: variantUrl(page.url, result.aLibs, options),
-      b: variantUrl(page.url, result.bLibs, options),
-      aLibs: libsOrigin(page, 'a'),
-      bLibs: libsOrigin(page, 'b'),
     };
   });
   if (result.entries.some((entry) => !entry.gate)) {
@@ -210,7 +152,7 @@ async function buildPlan(result, event) {
   }
   result.status = result.entries.length ? 'measure' : 'skip';
   if (!result.entries.length && !result.policy) {
-    result.reason = result.pages.some((page) => ['stale', 'error'].includes(page.status))
+    result.reason = result.pages.some((page) => page.status === 'error')
       ? 'No page was measured. The pages marked ⚠️ below could not be checked.'
       : 'None of the tested pages load the changed files.';
   }
@@ -227,12 +169,15 @@ async function createPlan() {
     // The event's base.sha is from when the PR was opened; the workflow passes the current tip.
     baseSha: env.PERF_BASE_SHA || pr.base.sha,
     headSha: pr.head.sha,
+    mergeBase: null,
+    productionSha: null,
     status: 'skip',
     reason: '',
     policy: '',
     changed: [],
     newBlocks: [],
-    drift: [],
+    unreleased: [],
+    sources: null,
     demo: { urls: [], rejected: [] },
     pages: [],
     entries: [],
@@ -254,9 +199,16 @@ async function measure() {
   const entry = JSON.parse(env.PERF_PAGE);
   let result;
   try {
-    const { lighthouseRun } = await import('./runner.js');
-    result = await measureEntry(entry, config, {
-      runOnce: (url) => lighthouseRun(url, { config }),
+    const sourcesDir = env.PERF_SOURCES_DIR;
+    const manifest = readJson(join(sourcesDir, 'manifest.json'));
+    const { loadSources, measurePage } = await import('./engine.js');
+    result = await measurePage({
+      entry,
+      manifest,
+      files: loadSources(sourcesDir, manifest),
+      config,
+      toolsDir: env.PERF_TOOLS_DIR,
+      workDir: join(outDir, 'engine', `${entry.id}-r${entry.round}`),
       log,
     });
   } catch (error) {
@@ -267,6 +219,8 @@ async function measure() {
   writeJson(join(outDir, `result-${entry.id}-r${entry.round}.json`), result);
   const verdict = evaluateResult(result, config);
   log(`${entry.id} round ${entry.round}: ${verdict.status}${verdict.reason ? ` - ${verdict.reason}` : ''}`);
+  // Lighthouse reports and traces are kept for pages that need a closer look.
+  setOutput('traces', verdict.status === 'pass' ? 'false' : 'true');
 }
 
 function loadResults(dir) {
@@ -299,27 +253,6 @@ function triage() {
   log(confirm.length ? `Re-running: ${confirm.map((entry) => entry.id).join(', ')}` : 'Nothing to re-run.');
 }
 
-// A failing page is not trusted when the base branch changed its files during the measurement.
-async function checkBaseMoved(plan, verdicts) {
-  if (!token || !plan.baseRef || !verdicts.some((verdict) => verdict.status === 'fail')) return;
-  try {
-    const head = await branchHead({ repository: plan.repository, branch: plan.baseRef, token });
-    if (head === plan.baseSha) return;
-    const moved = (await changedFiles({ repository: plan.repository, base: plan.baseSha, head, token })).filter(isRuntimePath).map((path) => `/${path}`.toLowerCase());
-    verdicts.forEach((verdict) => {
-      const loaded = plan.pages.find((page) => page.id === verdict.id)?.loaded || [];
-      if (verdict.status === 'fail' && verdict.kind === 'compare' && moved.some((path) => loaded.includes(path))) {
-        Object.assign(verdict, {
-          status: 'inconclusive',
-          reason: `${plan.baseRef} changed files this page loads during the measurement; re-run the check`,
-        });
-      }
-    });
-  } catch (error) {
-    log(`Could not check whether ${plan.baseRef} moved: ${error.message}`);
-  }
-}
-
 async function report() {
   const event = readJson(env.GITHUB_EVENT_PATH);
   let plan;
@@ -344,7 +277,6 @@ async function report() {
     const verdict = confirmVerdict(first, second && evaluateResult(second, config));
     return { ...verdict, id: entry.id, kind: entry.kind };
   });
-  await checkBaseMoved(plan, verdicts);
   const enforce = env.PERF_ENFORCE === 'true';
   const runUrl = env.GITHUB_RUN_ID
     ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}` : '';

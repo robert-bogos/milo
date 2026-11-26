@@ -8,45 +8,7 @@ export function loadConfig(file = new URL('./config.json', import.meta.url)) {
   return JSON.parse(readFileSync(file, 'utf8'));
 }
 
-// Mirrors the aem.live branch-name normalisation used in preview hostnames.
-export function sanitizeRef(name = '') {
-  return String(name).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-export function previewOrigin({ ref, repo, owner }) {
-  const label = [ref, repo, owner].map(sanitizeRef);
-  if (label.some((part) => !part)) return null;
-  const host = label.join('--');
-  return host.length > 63 ? null : `https://${host}.aem.live`;
-}
-
-const AEM_HOST = /^[a-z0-9-]+--[a-z0-9-]+--[a-z0-9-]+\.(aem|hlx)\.(live|page)$/;
-
-export function isMiloSite(hostname) {
-  return /^[a-z0-9-]+--milo--[a-z0-9-]+\.(aem|hlx)\.(live|page)$/i.test(hostname);
-}
-
-// Milo pages are re-hosted on the variant's preview host; consumer pages use ?milolibs=.
-export function variantUrl(pageUrl, libsOrigin, { martechOff = true } = {}) {
-  const url = new URL(pageUrl);
-  const libsHost = new URL(libsOrigin).hostname;
-  if (isMiloSite(url.hostname)) {
-    url.hostname = libsHost.replace(/\.aem\.live$/, url.hostname.endsWith('.page') ? '.aem.page' : '.aem.live');
-    url.searchParams.delete('milolibs');
-  } else {
-    url.searchParams.set('milolibs', libsHost.replace(/\.aem\.live$/, ''));
-  }
-  if (martechOff) url.searchParams.set('martech', 'off');
-  return url.toString();
-}
-
-export function expectedLibsOrigin(pageUrl, libsOrigin) {
-  return isMiloSite(new URL(pageUrl).hostname)
-    ? new URL(variantUrl(pageUrl, libsOrigin)).origin
-    : libsOrigin;
-}
+const MILO_HOST = 'main--milo--adobecom.aem.live';
 
 export function parseDemoUrls(body = '') {
   const label = /^\s*(?:[-*]\s*)?(?:\*\*)?(?:perf(?:ormance)?\s+)?demo(?:\s+(?:url|page))?\s*(?:\*\*)?\s*:/i;
@@ -60,7 +22,10 @@ export function parseDemoUrls(body = '') {
   return [...new Set(urls)];
 }
 
-export function validateDemoUrl(value, { allowDraft = false } = {}) {
+// perf-tools measures production pages and main--milo--adobecom.aem.live, whose /libs/ it can
+// swap. Drafts and other aem.live sites load Milo from another host (or cannot be measured), and
+// stage hosts run other code.
+export function validateDemoUrl(value) {
   let url;
   try {
     url = new URL(value);
@@ -68,19 +33,27 @@ export function validateDemoUrl(value, { allowDraft = false } = {}) {
     return { error: 'not a valid URL' };
   }
   const host = url.hostname.toLowerCase();
-  if (url.protocol !== 'https:' || url.username || url.password) {
-    return { error: 'use an https URL without credentials' };
+  if (url.protocol !== 'https:' || url.username || url.password || url.port) {
+    return { error: 'use an https URL without credentials or a port' };
   }
-  if (/(^|\.)adobe\.com$/.test(host)) {
-    return { error: "production pages cannot load this pull request's code; use the matching https://main--<site>--adobecom.aem.live URL" };
+  if (/\.(aem|hlx)\.page$/.test(host)) {
+    return { error: 'drafts (.aem.page) cannot be measured; publish the page (Milo /drafts is fine) and use its https://main--milo--adobecom.aem.live URL, or use a production URL' };
   }
-  if (!AEM_HOST.test(host)) return { error: 'use a public https://main--<site>--<owner>.aem.live page' };
-  if (/\.page$/.test(host) && !allowDraft) {
-    return { error: 'draft (.aem.page) pages are only accepted for new blocks; use the .aem.live URL' };
+  if (host !== MILO_HOST && (/\.(aem|hlx)\.live$/.test(host) || /(^|\.)stage\.adobe\.com$/.test(host))) {
+    return { error: 'this host loads Milo from another host, so the change cannot be swapped in; use the production URL of the page' };
+  }
+  if (host !== MILO_HOST && !/^[a-z0-9-]+(\.[a-z0-9-]+)*\.adobe\.com$/.test(host)) {
+    return { error: `use a production *.adobe.com page or a https://${MILO_HOST} page` };
   }
   ['milolibs', 'martech'].forEach((param) => url.searchParams.delete(param));
   url.hash = '';
   return { url: url.toString() };
+}
+
+export function pageUrl(url, { martechOff = true } = {}) {
+  const page = new URL(url);
+  if (martechOff) page.searchParams.set('martech', 'off');
+  return page.toString();
 }
 
 export function isRuntimePath(path = '') {
@@ -104,17 +77,18 @@ export function parseNameStatus(output = '') {
 export function classifyChanges(entries, { blockExistedAtBase = () => true } = {}) {
   const runtime = entries.filter((entry) => isRuntimePath(entry.path)
     || (entry.previousPath && isRuntimePath(entry.previousPath)));
-  const paths = new Set();
+  const files = new Set();
   runtime.forEach((entry) => {
     [entry.path, entry.previousPath].filter((path) => path && isRuntimePath(path))
-      .forEach((path) => paths.add(`/${path}`.toLowerCase()));
+      .forEach((path) => files.add(path));
   });
+  const paths = new Set([...files].map((path) => `/${path}`.toLowerCase()));
   const newBlocks = runtime
     .filter((entry) => entry.status === 'A')
     .map((entry) => entry.path.match(/^libs\/(?:c2\/)?blocks\/([^/]+)\/\1\.js$/))
     .filter((match) => match && !blockExistedAtBase(match[0].replace(/\/[^/]+$/, '')))
     .map((match) => match[1]);
-  return { runtime, paths: [...paths], newBlocks: [...new Set(newBlocks)] };
+  return { runtime, files: [...files], paths: [...paths], newBlocks: [...new Set(newBlocks)] };
 }
 
 export function libsPaths(urls = [], origin = null) {
@@ -129,86 +103,72 @@ export function libsPaths(urls = [], origin = null) {
   }).filter(Boolean))];
 }
 
-export function variantHostError(libs, expected, other = null) {
-  const origins = new Set((libs || []).map((value) => {
-    try {
-      return new URL(value).origin;
-    } catch {
-      return null;
+// perf-ab swaps only text files (see TEXT_SOURCE in perf-tools lib/pagespeed/job.mjs).
+export const TEXT_SOURCE = /\.(?:m?js|css|json|html|svg|txt)$/i;
+
+/**
+ * Decides which file versions perf-ab serves on each side. Production runs adobecom/milo main, so
+ * files that differ between main and the merge base ("drift") are served at their merge-base
+ * version on both sides; the files the pull request changes are served at the merge base (before)
+ * and at the head (after). Paths are repository paths.
+ */
+export function planSources({ changed, drift = [], existsAtBase, existsAtHead }) {
+  const before = {};
+  const after = {};
+  const unsupported = [];
+  const deleted = [];
+  const key = (path) => `/${path}`;
+  drift.filter((path) => existsAtBase.has(path) && TEXT_SOURCE.test(path)).forEach((path) => {
+    before[key(path)] = { rev: 'base', path };
+    after[key(path)] = { rev: 'base', path };
+  });
+  const swapped = changed.filter((path) => {
+    if (TEXT_SOURCE.test(path)) return true;
+    unsupported.push(path);
+    return false;
+  });
+  swapped.forEach((path) => {
+    if (existsAtBase.has(path)) before[key(path)] = { rev: 'base', path };
+    else delete before[key(path)];
+    if (existsAtHead.has(path)) {
+      after[key(path)] = { rev: 'head', path };
+    } else {
+      delete after[key(path)];
+      deleted.push(path);
     }
-  }));
-  if (!origins.has(expected)) return `did not load Milo from ${expected}`;
-  if (other && other !== expected && origins.has(other)) return `also loaded Milo from ${other}`;
-  return null;
+  });
+  return { before, after, changed: swapped.map(key), unsupported, deleted };
 }
 
-const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
-
-// Every Milo page loads utils.js, so it exposes a host that still serves an older copy of a branch
-// (Code Sync only re-copies a whole branch when it is created or force-pushed).
-export const SERVED_SENTINELS = ['libs/utils/utils.js'];
-
-/** The files whose served copies are compared with git: changed runtime files plus sentinels. */
-export function servedCheckPaths(runtime, { max = 15, sentinels = SERVED_SENTINELS } = {}) {
-  const changed = runtime.slice(0, max).map(({ path }) => path);
-  return { paths: [...new Set([...changed, ...sentinels])], truncated: runtime.length > max };
+function originOf(value) {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Waits until a preview host serves exactly the expected file contents (AEM Code Sync can lag
- * behind a push). `expected === null` means the file must not exist.
+ * Decides whether a page needs measuring, from an unthrottled discovery load of the production
+ * page. perf-ab can swap files only on the page's own host, so Milo must load from there.
  */
-export async function verifyServed(files, options) {
-  const {
-    origin,
-    attempts = 12,
-    delayMs = 20000,
-    fetchImpl = fetch,
-    sleep = wait,
-  } = options;
-  let mismatches = [];
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (attempt) {
-      await sleep(delayMs);
-    }
-    mismatches = (await Promise.all(files.map(async ({ path, expected }) => {
-      try {
-        const response = await fetchImpl(`${origin}/${path}?perf-check=${Date.now()}`, { redirect: 'manual' });
-        if (expected === null) return response.status === 404 ? null : `${path} (still served)`;
-        if (!response.ok) return `${path} (HTTP ${response.status})`;
-        const body = Buffer.from(await response.arrayBuffer());
-        return body.equals(expected) ? null : `${path} (outdated content)`;
-      } catch (error) {
-        return `${path} (${error.message})`;
-      }
-    }))).filter(Boolean);
-    if (!mismatches.length) return { ok: true, mismatches, attempts: attempt + 1 };
+export function classifyPage({ discovery, origin, changedPaths, unsupported = [] }) {
+  if (!discovery?.ok) return { status: 'error', reason: discovery?.error || 'the page could not be loaded', hits: [] };
+  const libs = discovery.libs || [];
+  const own = libsPaths(libs, origin);
+  if (!own.length) {
+    const other = libs.map(originOf).find((value) => value && value !== origin);
+    return { status: 'error', reason: other ? `loads Milo from ${other}, not from ${origin}` : 'did not load Milo', hits: [] };
   }
-  return { ok: false, mismatches, attempts };
-}
-
-/**
- * Decides whether a page needs measuring, from an unthrottled discovery load of each variant.
- * A page is affected when either variant requested a changed /libs/ file. It is stale when it
- * also loads files that changed on the base branch after the PR branched off: those differences
- * would be attributed to the PR, so the branch must be updated first.
- */
-export function classifyPage({ discovery, changedPaths, driftPaths = [] }) {
-  const failed = ['a', 'b'].map((variant) => discovery?.[variant]).find((item) => item && !item.ok);
-  if (!discovery?.b || failed) {
-    return { status: 'error', reason: failed?.error || 'page could not be loaded', hits: [], drift: [] };
+  const anywhere = libsPaths(libs);
+  const elsewhere = changedPaths.filter((path) => !own.includes(path) && anywhere.includes(path));
+  if (elsewhere.length) return { status: 'error', reason: `loads ${elsewhere[0]} from another host`, hits: [] };
+  const hits = changedPaths.filter((path) => own.includes(path));
+  if (!hits.length) return { status: 'unaffected', hits };
+  if (hits.every((path) => unsupported.includes(path))) {
+    return { status: 'error', reason: `only loads changed files that cannot be swapped in (${hits.slice(0, 3).join(', ')})`, hits };
   }
-  const loaded = new Set([...(discovery.a?.paths || []), ...(discovery.b.paths || [])]);
-  const hits = changedPaths.filter((path) => loaded.has(path));
-  const drift = driftPaths.map((path) => `/${path}`.toLowerCase()).filter((path) => loaded.has(path));
-  if (!hits.length) return { status: 'unaffected', hits, drift };
-  if (drift.length) return { status: 'stale', hits, drift };
-  return { status: 'measure', hits, drift };
-}
-
-// Counterbalanced interleaving (AB, BA, AB, ...) so drift and order effects hit both sides.
-export function pairOrder(index) {
-  return index % 2 ? ['b', 'a'] : ['a', 'b'];
+  return { status: 'measure', hits };
 }
 
 function benchmarkFloor(indexes, { benchmarkIndexRatio = 0, minBenchmarkIndex = 0 }) {
@@ -285,6 +245,7 @@ function evaluateAfterOnly(result, config) {
     id: result.id,
     kind: result.kind,
     gate: result.gate,
+    warnings: result.warnings || [],
     discarded: slow.length,
     failedRuns: incomplete.length,
     benchmarkIndex: reference,
@@ -316,7 +277,8 @@ function evaluateAfterOnly(result, config) {
 
 export function evaluateResult(result, config) {
   if (!result) return { status: 'inconclusive', reason: 'no measurement was uploaded', regressed: [] };
-  const base = { id: result.id, kind: result.kind, gate: result.gate };
+  const { id, kind, gate } = result;
+  const base = { id, kind, gate, warnings: result.warnings || [] };
   if (result.error) return { ...base, status: 'inconclusive', reason: result.error, regressed: [] };
   if (result.kind === 'after-only') return evaluateAfterOnly(result, config);
   const { valid, slow, incomplete, reference } = selectPairs(result.runs, config);
@@ -357,70 +319,12 @@ export function confirmVerdict(first, second) {
   };
 }
 
-export async function measureEntry(entry, config, { runOnce, now = Date.now, log = () => {} }) {
-  const afterOnly = entry.kind === 'after-only';
-  const deadline = now() + config.pageBudgetMinutes * 60000;
-  const result = {
-    id: entry.id,
-    round: entry.round,
-    kind: entry.kind,
-    gate: entry.gate,
-    warmups: [],
-    runs: [],
-    notes: [],
-  };
-  const run = async (variant, details) => {
-    const started = now();
-    const sample = await runOnce(entry[variant], { variant });
-    const other = afterOnly ? null : entry[variant === 'a' ? 'bLibs' : 'aLibs'];
-    const hostError = sample.ok ? variantHostError(sample.libs, entry[`${variant}Libs`], other) : null;
-    const measured = {
-      variant,
-      ...details,
-      ...sample,
-      ok: Boolean(sample.ok && !hostError),
-      error: sample.error || hostError || undefined,
-      ms: now() - started,
-    };
-    delete measured.libs;
-    const label = details.warmup ? 'warm-up' : `pair ${details.pair}`;
-    log(`${entry.id} ${variant} ${label}: ${measured.ok ? `LCP ${Math.round(measured.metrics.lcp)} ms, CLS ${measured.metrics.cls?.toFixed(3)}, BI ${Math.round(measured.benchmarkIndex)}` : measured.error}`);
-    return measured;
-  };
-  for (const variant of afterOnly ? ['b'] : ['a', 'b']) {
-    for (let i = 0; i < config.warmupRuns; i += 1) {
-      result.warmups.push(await run(variant, { warmup: true }));
-    }
-  }
-  const setupError = result.warmups.find((sample) => /Milo from/.test(sample.error || ''));
-  if (setupError) {
-    result.error = `the ${setupError.variant === 'a' ? 'before' : 'after'} page ${setupError.error}`;
-    return result;
-  }
-  const select = afterOnly ? selectRuns : selectPairs;
-  for (let index = 0; index < config.pairs + config.extraPairs; index += 1) {
-    if (index >= config.pairs && select(result.runs, config).valid.length >= config.pairs) break;
-    if (index === 3 && !result.runs.some((sample) => sample.ok)) {
-      result.error = `every run failed (${result.runs[0]?.error || 'unknown error'})`;
-      break;
-    }
-    if (now() > deadline) {
-      result.notes.push('stopped early: time budget reached');
-      break;
-    }
-    for (const variant of afterOnly ? ['b'] : pairOrder(index)) {
-      result.runs.push(await run(variant, { pair: index }));
-    }
-  }
-  return result;
-}
-
 export function overallStatus(plan, verdicts) {
   if (plan.status === 'error') return 'inconclusive';
   if (plan.policy) return 'fail';
   if (verdicts.some((verdict) => verdict.status === 'fail')) return 'fail';
   if (verdicts.some((verdict) => verdict.status === 'inconclusive')
-    || plan.pages?.some((page) => ['stale', 'error'].includes(page.status))) return 'inconclusive';
+    || plan.pages?.some((page) => page.status === 'error')) return 'inconclusive';
   if (plan.status === 'skip') return 'skipped';
   return 'pass';
 }
@@ -465,7 +369,7 @@ function describeVerdict(verdict, config) {
 }
 
 function pageLink(page) {
-  return `[${page.label}](${page.production || page.url})`;
+  return `[${page.label}](${page.url})`;
 }
 
 function compareRows(rows, config) {
@@ -501,12 +405,16 @@ function afterOnlyRows(rows, config) {
 
 function methodLine(plan, config) {
   const { lcp, cls } = config.metrics;
-  return `<sub>${config.formFactor}, ${config.throttlingMethod} throttling, ${config.pairs} interleaved before/after pairs per page. `
+  const sha = (value) => String(value || '').slice(0, 7) || 'n/a';
+  return `<sub>[perf-tools](https://github.com/adobecom/perf-tools) on the live pages, ${config.device}, `
+    + `${config.pairs} interleaved before/after pairs per page. Before: merge base \`${sha(plan.mergeBase)}\` · `
+    + `After: \`${sha(plan.headSha)}\` (Milo files that differ from production are swapped in on both sides). `
     + `A page fails when mean ${lcp.label} is more than ${Math.round(lcp.relative * 100)}% slower `
     + `(or mean CLS rises by more than ${cls.absolute}) and a one-sided Wilcoxon signed-rank test gives p < ${config.alpha}, `
-    + `both in the first run and in a re-run. Before: \`${plan.aLibs || 'n/a'}\` · After: \`${plan.bLibs || 'n/a'}\` · `
-    + `Commit ${String(plan.headSha || '').slice(0, 7)}</sub>`;
+    + 'both in the first run and in a re-run.</sub>';
 }
+
+const fileList = (paths, max = 5) => `${paths.slice(0, max).map((path) => `\`${path}\``).join(', ')}${paths.length > max ? ` and ${paths.length - max} more` : ''}`;
 
 function noteLines(plan, verdicts, config) {
   const lines = [];
@@ -514,18 +422,31 @@ function noteLines(plan, verdicts, config) {
   if (unaffected.length) {
     lines.push(`Not measured, because they do not load the changed files: ${unaffected.map((page) => page.label).join(', ')}.`, '');
   }
-  (plan.pages || []).filter((page) => page.status === 'stale').forEach((page) => {
-    lines.push(`⚠️ ${page.label}: the base branch changed files this page loads (${page.drift.slice(0, 3).join(', ')}). Update the branch to measure it.`);
-  });
   (plan.pages || []).filter((page) => page.status === 'error').forEach((page) => {
     lines.push(`⚠️ ${page.label}: could not be checked (${page.reason}).`);
   });
   (plan.demo?.rejected || []).forEach((item) => lines.push(`⚠️ Demo URL ${item.url} was ignored: ${item.reason}.`));
+  const { unsupported = [], deleted = [] } = plan.sources || {};
+  if (unsupported.length) lines.push(`ℹ️ Only text files can be swapped in, so these changes were not measured: ${fileList(unsupported)}.`);
+  if (deleted.length) lines.push(`ℹ️ Deleting files cannot be emulated (production still serves them): ${fileList(deleted)}.`);
+  if (plan.unreleased?.length) {
+    lines.push(`ℹ️ ${fileList(plan.unreleased)} ${plan.unreleased.length > 1 ? 'are' : 'is'} not on production yet, so pages that load ${plan.unreleased.length > 1 ? 'them' : 'it'} cannot be detected; demo pages were measured regardless.`);
+  }
   (plan.notes || []).forEach((note) => lines.push(`ℹ️ ${note}`));
+  const labels = new Map((plan.entries || []).map((entry) => [entry.id, entry.label]));
+  verdicts.forEach((verdict) => {
+    const seen = new Set();
+    [verdict.first, verdict.second, verdict].filter(Boolean).flatMap((item) => item.warnings || [])
+      .filter((warning) => !seen.has(warning.kind) && seen.add(warning.kind))
+      .forEach((warning) => lines.push(`ℹ️ ${labels.get(verdict.id) || verdict.id}: perf-tools warned \`${warning.kind}\`${warning.message ? `: ${warning.message}` : ''}`));
+  });
   const discarded = verdicts
     .reduce((sum, verdict) => sum + ((verdict.first || verdict).discarded || 0), 0);
   if (discarded) {
     lines.push(`ℹ️ ${discarded} pair(s) were discarded because the runner was unusually slow (Lighthouse benchmarkIndex below ${Math.round(config.benchmarkIndexRatio * 100)}% of the job median).`);
+  }
+  if (verdicts.some((verdict) => verdict.status !== 'pass')) {
+    lines.push('ℹ️ Lighthouse reports and traces of pages that did not pass are attached to the workflow run (`perf-traces-*` artifacts).');
   }
   return lines;
 }
@@ -557,10 +478,7 @@ export function renderReport({ plan, verdicts = [], config, enforce = false, run
   lines.push(...noteLines(plan, verdicts, config));
   if (rows.length) {
     lines.push('', '<details><summary>Tested URLs</summary>', '');
-    rows.forEach(({ page }) => {
-      const urls = page.kind === 'after-only' ? `[after](${page.b})` : `[before](${page.a}) · [after](${page.b})`;
-      lines.push(`- ${page.label}: ${urls}`);
-    });
+    rows.forEach(({ page }) => lines.push(`- ${page.label}: ${page.url}${page.kind === 'after-only' ? ' (after only)' : ''}`));
     lines.push('', '</details>');
   }
   if (runUrl) lines.push('', `[Workflow run](${runUrl})`);

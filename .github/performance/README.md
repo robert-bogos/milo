@@ -8,7 +8,7 @@ the change, and comments the result on the pull request. Design:
 
 | Job | What it does |
 | --- | --- |
-| Find affected pages | Lists the changed `libs/` files, checks that aem.live serves both branches' committed code (the changed files and `libs/utils/utils.js`), reads demo pages from the description and loads every MVP and demo page once per variant to record the `/libs/` files it requests. Pages that load a changed file are measured. |
+| Find affected pages | Lists the changed `libs/` files, checks that aem.live serves both branches' committed code (the changed files and `libs/utils/utils.js`) with the CORS header that pages on other hosts need, reads demo pages from the description and loads every MVP and demo page once per variant to record the `/libs/` files it requests. Pages that load a changed file are measured. |
 | Measure (one job per page) | One warm-up per variant, then 7 interleaved pairs (AB, BA, AB…). Every run uses a fresh Chrome with a cold cache, Lighthouse mobile with simulated throttling (the PageSpeed Insights defaults) and `martech=off`. |
 | Pick pages to re-measure | Pages that fail are measured again on a new runner. |
 | Re-measure | Same as Measure. |
@@ -82,6 +82,11 @@ object can be changed for experiments.
   served at `<branch>--milo--<owner>.aem.live`. `<branch>--milo--<owner>` must be at most 63
   characters. Code Sync copies a whole branch only when the branch is created or force-pushed;
   other pushes copy just the changed files.
+- The AEM site configuration must add `access-control-allow-origin: *` for `/libs/**`, as
+  adobecom/milo's does ([custom headers](https://www.aem.live/docs/custom-headers)). MVP pages run
+  on other hosts and import Milo as ES modules, which browsers block without this header. A fork's
+  new site configuration does not have it. aem.live adds headers only when Code Sync copies a file,
+  so force-push existing branches after adding it.
 - Runner access to `registry.npmjs.org`, the Chrome download (unless Chrome is installed),
   `*.aem.live` and the third-party hosts the pages load.
 - Up to 17 page jobs per round (15 MVP pages and 2 demo pages).

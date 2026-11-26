@@ -1,7 +1,8 @@
 name: Performance check
 
-# Measures the Milo pages a pull request affects, before and after the change, and comments the
-# result. Off unless the repository variable PERF_CHECKS is "on". See .github/performance/README.md.
+# Measures the pages a pull request affects with adobecom/perf-tools, before and after the change,
+# and comments the result. Off unless the repository variable PERF_CHECKS is "on".
+# See .github/performance/README.md.
 on:
   pull_request:
     branches: [stage]
@@ -21,6 +22,8 @@ defaults:
 
 env:
   PERF_OUT_DIR: ${{ github.workspace }}/perf-output
+  # adobecom/perf-tools (perf-ab) at a reviewed commit; its lib/ is loaded as code.
+  PERF_TOOLS_REF: f8344b62b4744b7fbf768caaee36366c3ad65c4c
 
 jobs:
   plan:
@@ -53,7 +56,8 @@ jobs:
         id: base
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      # Only the git history is needed (changed files, merge base, committed file contents).
+      # Only the git history is needed: the changed files, the merge base and the contents of the
+      # swapped files, which git downloads on demand.
       - name: Fetch the pull request history
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -67,7 +71,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: perf-tooling/.github/performance/package-lock.json
 
@@ -92,6 +96,16 @@ jobs:
           path: ${{ env.PERF_OUT_DIR }}/plan.json
           retention-days: 14
 
+      # The before and after versions of the files that perf-tools swaps into the pages.
+      - name: Upload the swapped files
+        if: steps.plan.outputs.measure == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: perf-sources
+          path: ${{ env.PERF_OUT_DIR }}/sources
+          retention-days: 14
+          if-no-files-found: error
+
   measure:
     name: Measure ${{ matrix.label }}
     needs: plan
@@ -110,22 +124,45 @@ jobs:
           sparse-checkout: .github/performance
           persist-credentials: false
 
+      - name: Check out perf-tools
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: adobecom/perf-tools
+          ref: ${{ env.PERF_TOOLS_REF }}
+          path: perf-engine
+          persist-credentials: false
+
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
-          cache-dependency-path: perf-tooling/.github/performance/package-lock.json
+          cache-dependency-path: |
+            perf-tooling/.github/performance/package-lock.json
+            perf-engine/package-lock.json
 
       - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Install perf-tools
+        working-directory: perf-engine
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
       - name: Set up Chrome
         run: node cli.js chrome
 
+      - name: Download the swapped files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: perf-sources
+          path: ${{ runner.temp }}/sources
+
       - name: Measure before and after
+        id: measure
         env:
           PERF_PAGE: ${{ toJSON(matrix) }}
+          PERF_SOURCES_DIR: ${{ runner.temp }}/sources
+          PERF_TOOLS_DIR: ${{ github.workspace }}/perf-engine
         run: node cli.js measure
 
       - name: Upload the measurements
@@ -135,6 +172,18 @@ jobs:
           name: perf-r1-${{ matrix.id }}
           path: ${{ env.PERF_OUT_DIR }}/result-*.json
           retention-days: 14
+
+      # Lighthouse reports and traces of every run, for pages that did not pass.
+      - name: Upload the Lighthouse reports
+        if: ${{ !cancelled() && (steps.measure.outputs.traces == 'true' || failure()) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: perf-traces-r1-${{ matrix.id }}
+          path: |
+            ${{ env.PERF_OUT_DIR }}/engine
+            !${{ env.PERF_OUT_DIR }}/engine/**/devtoolslog.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   triage:
     name: Pick pages to re-measure
@@ -157,7 +206,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Download the plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -199,22 +248,45 @@ jobs:
           sparse-checkout: .github/performance
           persist-credentials: false
 
+      - name: Check out perf-tools
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: adobecom/perf-tools
+          ref: ${{ env.PERF_TOOLS_REF }}
+          path: perf-engine
+          persist-credentials: false
+
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
-          cache-dependency-path: perf-tooling/.github/performance/package-lock.json
+          cache-dependency-path: |
+            perf-tooling/.github/performance/package-lock.json
+            perf-engine/package-lock.json
 
       - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Install perf-tools
+        working-directory: perf-engine
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
       - name: Set up Chrome
         run: node cli.js chrome
 
+      - name: Download the swapped files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: perf-sources
+          path: ${{ runner.temp }}/sources
+
       - name: Measure before and after again
+        id: measure
         env:
           PERF_PAGE: ${{ toJSON(matrix) }}
+          PERF_SOURCES_DIR: ${{ runner.temp }}/sources
+          PERF_TOOLS_DIR: ${{ github.workspace }}/perf-engine
         run: node cli.js measure
 
       - name: Upload the measurements
@@ -224,6 +296,18 @@ jobs:
           name: perf-r2-${{ matrix.id }}
           path: ${{ env.PERF_OUT_DIR }}/result-*.json
           retention-days: 14
+
+      # Lighthouse reports and traces of every run, for pages that did not pass.
+      - name: Upload the Lighthouse reports
+        if: ${{ !cancelled() && (steps.measure.outputs.traces == 'true' || failure()) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: perf-traces-r2-${{ matrix.id }}
+          path: |
+            ${{ env.PERF_OUT_DIR }}/engine
+            !${{ env.PERF_OUT_DIR }}/engine/**/devtoolslog.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   report:
     name: Report
@@ -247,7 +331,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Download the plan
         continue-on-error: true

@@ -1,14 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  REPORT_MARKER, classifyChanges, classifyPage, confirmVerdict, evaluateResult, expectedLibsOrigin,
-  libsPaths, loadConfig, measureEntry, parseDemoUrls, parseNameStatus, previewOrigin, renderReport,
-  servedCheckPaths, validateDemoUrl, variantHostError, variantUrl, verifyServed,
+  REPORT_MARKER, classifyChanges, classifyPage, confirmVerdict, evaluateResult, libsPaths,
+  loadConfig, parseDemoUrls, parseNameStatus, renderReport, validateDemoUrl,
 } from '../core.js';
 
 const config = loadConfig();
-const STAGE = 'https://stage--milo--adobecom.aem.live';
-const BRANCH = 'https://feat--milo--adobecom.aem.live';
+const WWW = 'https://www.adobe.com';
+const MILO = 'https://main--milo--adobecom.aem.live';
 
 function run(variant, pair, metrics = {}, benchmarkIndex = 1000) {
   return {
@@ -32,57 +31,39 @@ function compareResult(before, after, extra = {}) {
 
 const lcps = [3000, 3100, 2950, 3050, 3020, 2980, 3010];
 
-describe('preview hosts and page variants', () => {
-  it('builds aem.live origins the way branch previews are named', () => {
-    assert.equal(previewOrigin({ ref: 'Feature/MWPW-123_Café', repo: 'milo', owner: 'adobecom' }), 'https://feature-mwpw-123-cafe--milo--adobecom.aem.live');
-    assert.equal(previewOrigin({ ref: 'x'.repeat(50), repo: 'milo', owner: 'adobecom' }), null);
-  });
-
-  it('points consumer pages at the variant with milolibs', () => {
-    assert.equal(
-      variantUrl('https://main--da-cc--adobecom.aem.live/products/photoshop?milolibs=main', STAGE),
-      'https://main--da-cc--adobecom.aem.live/products/photoshop?milolibs=stage--milo--adobecom&martech=off',
-    );
-    assert.equal(expectedLibsOrigin('https://main--da-cc--adobecom.aem.live/x', BRANCH), BRANCH);
-  });
-
-  it('re-hosts Milo pages on the variant branch and keeps drafts on .aem.page', () => {
-    const url = 'https://main--milo--adobecom.aem.page/drafts/perf/demo';
-    assert.equal(variantUrl(url, BRANCH), 'https://feat--milo--adobecom.aem.page/drafts/perf/demo?martech=off');
-    assert.equal(expectedLibsOrigin(url, BRANCH), 'https://feat--milo--adobecom.aem.page');
-  });
-});
-
 describe('demo pages', () => {
   it('reads labelled demo URLs from the PR description', () => {
     const body = [
       '- Before: https://main--milo--adobecom.aem.page/?martech=off',
-      '- Demo: https://main--da-cc--adobecom.aem.live/products/photoshop.',
-      '* **Demo URL:** [page](https://main--da-dc--adobecom.aem.live/acrobat)',
-      'Performance demo: https://main--da-cc--adobecom.aem.live/products/photoshop',
-      'Demo page: https://www.adobe.com/products/photoshop.html',
+      '- Demo: https://www.adobe.com/products/photoshop.html.',
+      '* **Demo URL:** [page](https://main--milo--adobecom.aem.live/drafts/perf/demo)',
+      'Performance demo: https://www.adobe.com/products/photoshop.html',
+      'Demo page: https://business.adobe.com/',
       'The demo is great: no URL here',
-      '- Demo: https://main--<site>--adobecom.aem.live/<page>',
+      '- Demo: https://www.adobe.com/<page>.html',
     ].join('\r\n');
     assert.deepEqual(parseDemoUrls(body), [
-      'https://main--da-cc--adobecom.aem.live/products/photoshop',
-      'https://main--da-dc--adobecom.aem.live/acrobat',
       'https://www.adobe.com/products/photoshop.html',
+      'https://main--milo--adobecom.aem.live/drafts/perf/demo',
+      'https://business.adobe.com/',
     ]);
     assert.deepEqual(parseDemoUrls(null), []);
   });
 
-  it('accepts live aem pages and drafts only for new blocks', () => {
+  it('accepts production pages and published Milo pages, whose /libs/ can be swapped', () => {
     assert.deepEqual(
-      validateDemoUrl('https://main--da-cc--adobecom.aem.live/x?milolibs=foo&martech=off#top'),
-      { url: 'https://main--da-cc--adobecom.aem.live/x' },
+      validateDemoUrl(`${WWW}/products/photoshop.html?milolibs=foo&martech=off#top`),
+      { url: `${WWW}/products/photoshop.html` },
     );
-    assert.match(validateDemoUrl('https://www.adobe.com/products/photoshop.html').error, /production/);
-    assert.match(validateDemoUrl('http://main--da-cc--adobecom.aem.live/x').error, /https/);
-    assert.match(validateDemoUrl('https://example.com/x').error, /aem\.live/);
-    const draft = 'https://main--da-cc--adobecom.aem.page/drafts/x';
-    assert.match(validateDemoUrl(draft).error, /new blocks/);
-    assert.equal(validateDemoUrl(draft, { allowDraft: true }).url, draft);
+    assert.deepEqual(validateDemoUrl(`${MILO}/drafts/perf/demo`), { url: `${MILO}/drafts/perf/demo` });
+    assert.match(validateDemoUrl('https://main--milo--adobecom.aem.page/drafts/x').error, /publish the page/);
+    assert.match(validateDemoUrl('https://main--da-cc--adobecom.aem.live/x').error, /another host/);
+    assert.match(validateDemoUrl('https://www.stage.adobe.com/x').error, /another host/);
+    assert.match(validateDemoUrl('http://www.adobe.com/x').error, /https/);
+    assert.match(validateDemoUrl('https://www.adobe.com:8443/x').error, /port/);
+    assert.match(validateDemoUrl('https://www.adobe.com.example.com/x').error, /production \*\.adobe\.com/);
+    assert.match(validateDemoUrl('https://adobe.com/x').error, /production \*\.adobe\.com/);
+    assert.match(validateDemoUrl('www.adobe.com').error, /not a valid URL/);
   });
 });
 
@@ -107,6 +88,15 @@ describe('changed files', () => {
       { status: 'M', path: 'test/blocks/marquee/marquee.test.js' },
       { status: 'M', path: 'nala/blocks/marquee.test.js' },
     ], { blockExistedAtBase: (dir) => dir === 'libs/blocks/marquee' });
+    // Repository paths keep their case (to read the files); URL paths are lowercase.
+    assert.deepEqual(changes.files, [
+      'libs/utils/utils.js',
+      'libs/blocks/New-Block/New-Block.js',
+      'libs/c2/blocks/fresh/fresh.js',
+      'libs/blocks/marquee/marquee.js',
+      'libs/features/b.js',
+      'libs/features/a.js',
+    ]);
     assert.deepEqual(changes.paths, [
       '/libs/utils/utils.js',
       '/libs/blocks/new-block/new-block.js',
@@ -120,32 +110,40 @@ describe('changed files', () => {
 });
 
 describe('page discovery', () => {
-  const discovery = {
-    a: { ok: true, paths: ['/libs/utils/utils.js', '/libs/blocks/marquee/marquee.js'] },
-    b: { ok: true, paths: ['/libs/utils/utils.js', '/libs/blocks/marquee/marquee.js'] },
-  };
+  const libs = (origin, ...paths) => paths.map((path) => `${origin}${path}`);
+  const page = (discovery, changedPaths, extra = {}) => classifyPage({
+    discovery,
+    origin: WWW,
+    changedPaths,
+    ...extra,
+  });
+  const marquee = '/libs/blocks/marquee/marquee.js';
 
-  it('measures pages that load a changed file', () => {
-    assert.equal(classifyPage({ discovery, changedPaths: ['/libs/blocks/marquee/marquee.js'] }).status, 'measure');
-    assert.equal(classifyPage({ discovery, changedPaths: ['/libs/blocks/tabs/tabs.js'] }).status, 'unaffected');
+  it('measures pages that load a changed file from their own host', () => {
+    const discovery = { ok: true, libs: libs(WWW, '/libs/utils/utils.js', marquee) };
+    assert.deepEqual(page(discovery, [marquee, '/libs/blocks/tabs/tabs.js']), { status: 'measure', hits: [marquee] });
+    assert.deepEqual(page(discovery, ['/libs/blocks/tabs/tabs.js']), { status: 'unaffected', hits: [] });
   });
 
-  it('does not attribute newer base-branch changes to the pull request', () => {
-    const page = classifyPage({ discovery, changedPaths: ['/libs/blocks/marquee/marquee.js'], driftPaths: ['libs/utils/utils.js', 'libs/blocks/tabs/tabs.js'] });
-    assert.deepEqual(page, { status: 'stale', hits: ['/libs/blocks/marquee/marquee.js'], drift: ['/libs/utils/utils.js'] });
+  it('reports pages whose changed files cannot be swapped in', () => {
+    assert.deepEqual(page({ ok: false, error: 'boom' }, []), { status: 'error', reason: 'boom', hits: [] });
+    assert.equal(page({ ok: true, libs: [] }, []).reason, 'did not load Milo');
+    const otherHost = { ok: true, libs: libs(MILO, '/libs/utils/utils.js') };
+    assert.equal(page(otherHost, ['/libs/utils/utils.js']).reason, `loads Milo from ${MILO}, not from ${WWW}`);
+    const mixed = {
+      ok: true,
+      libs: [...libs(WWW, '/libs/utils/utils.js'), ...libs('https://milo.adobe.com', marquee)],
+    };
+    assert.equal(page(mixed, [marquee]).reason, `loads ${marquee} from another host`);
+    const image = { ok: true, libs: libs(WWW, '/libs/utils/utils.js', '/libs/img/logo.png') };
+    const unsupported = ['/libs/img/logo.png'];
+    assert.match(page(image, unsupported, { unsupported }).reason, /cannot be swapped in/);
+    assert.equal(page(image, [...unsupported, '/libs/utils/utils.js'], { unsupported }).status, 'measure');
   });
 
-  it('reports pages that could not be loaded', () => {
-    const page = classifyPage({ discovery: { ...discovery, b: { ok: false, error: 'boom' } }, changedPaths: [] });
-    assert.deepEqual(page, { status: 'error', reason: 'boom', hits: [], drift: [] });
-  });
-
-  it('keeps only Milo files from the expected origin and checks the variant host', () => {
-    const libs = [`${STAGE}/libs/utils/utils.js`, 'https://www.adobe.com/libs/other.js', 'not a url'];
-    assert.deepEqual(libsPaths(libs, STAGE), ['/libs/utils/utils.js']);
-    assert.equal(variantHostError(libs, STAGE, BRANCH), null);
-    assert.match(variantHostError(libs, BRANCH, STAGE), /did not load Milo from/);
-    assert.match(variantHostError([...libs, `${BRANCH}/libs/x.js`], STAGE, BRANCH), /also loaded/);
+  it('keeps only /libs/ files from the page host', () => {
+    const urls = [`${WWW}/libs/Utils/utils.js`, 'https://milo.adobe.com/libs/x.js', `${WWW}/blocks/x.js`, 'not a url'];
+    assert.deepEqual(libsPaths(urls, WWW), ['/libs/utils/utils.js']);
   });
 });
 
@@ -199,11 +197,12 @@ describe('evaluateResult', () => {
   });
 
   it('discards pairs measured on an unusually slow runner', () => {
-    const result = compareResult(lcps.map((lcp) => ({ lcp })), lcps.map((lcp) => ({ lcp })));
+    const tenPairs = [...lcps, 3040, 2990, 3060].map((lcp) => ({ lcp }));
+    const result = compareResult(tenPairs, tenPairs);
     result.runs[5].benchmarkIndex = 500;
     const verdict = evaluateResult(result, config);
     assert.equal(verdict.discarded, 1);
-    assert.equal(verdict.pairs, 6);
+    assert.equal(verdict.pairs, 9);
     assert.equal(verdict.status, 'pass');
   });
 
@@ -246,147 +245,66 @@ describe('confirmVerdict', () => {
   });
 });
 
-describe('measureEntry', () => {
-  const entry = {
-    id: 'page', kind: 'compare', gate: true, round: 1, a: 'https://site/a', b: 'https://site/b', aLibs: STAGE, bLibs: BRANCH,
-  };
-  const runner = (overrides = {}) => {
-    const calls = [];
-    const runOnce = async (url, { variant }) => {
-      calls.push(variant);
-      const override = overrides[calls.length];
-      return {
-        ok: true,
-        benchmarkIndex: 1000,
-        metrics: { lcp: 3000, cls: 0, tbt: 0, fcp: 1000 },
-        libs: [`${variant === 'a' ? STAGE : BRANCH}/libs/utils/utils.js`],
-        ...override,
-      };
-    };
-    return { calls, runOnce };
-  };
-
-  it('warms up both variants, then interleaves counterbalanced pairs', async () => {
-    const { calls, runOnce } = runner();
-    const result = await measureEntry(entry, config, { runOnce });
-    assert.deepEqual(calls, ['a', 'b', 'a', 'b', 'b', 'a', 'a', 'b', 'b', 'a', 'a', 'b', 'b', 'a', 'a', 'b']);
-    assert.equal(result.warmups.length, 2);
-    assert.equal(result.runs.length, 14);
-    assert.equal(evaluateResult(result, config).status, 'pass');
-  });
-
-  it('replaces failed pairs with extra pairs', async () => {
-    const { runOnce } = runner({ 6: { ok: false, error: 'timeout' }, 9: { libs: [`${STAGE}/libs/utils/utils.js`] } });
-    const result = await measureEntry(entry, config, { runOnce });
-    assert.equal(result.runs.length, 18);
-    assert.equal(evaluateResult(result, config).pairs, 7);
-  });
-
-  it('stops when a warm-up loads Milo from the wrong host', async () => {
-    const { calls, runOnce } = runner({ 2: { libs: [`${STAGE}/libs/utils/utils.js`] } });
-    const result = await measureEntry(entry, config, { runOnce });
-    assert.equal(calls.length, 2);
-    assert.match(result.error, /^the after page did not load Milo from https:\/\/feat--milo/);
-  });
-
-  it('stops after three failed pairs and when the time budget runs out', async () => {
-    const failing = await measureEntry(entry, config, { runOnce: async () => ({ ok: false, error: 'down' }) });
-    assert.equal(failing.runs.length, 6);
-    assert.match(failing.error, /every run failed \(down\)/);
-    let clock = 0;
-    const slow = await measureEntry(entry, config, {
-      runOnce: runner().runOnce,
-      now: () => {
-        clock += 4 * 60000;
-        return clock;
-      },
-    });
-    assert.ok(slow.runs.length < 14);
-    assert.deepEqual(slow.notes, ['stopped early: time budget reached']);
-  });
-});
-
-describe('verifyServed', () => {
-  it('retries until the preview serves the committed files', async () => {
-    let attempt = 0;
-    const fetchImpl = async (url) => {
-      if (url.includes('deleted.js')) return { ok: false, status: 404 };
-      attempt += 1;
-      const body = attempt > 1 ? 'new' : 'old';
-      const { buffer } = new TextEncoder().encode(body);
-      return { ok: true, status: 200, arrayBuffer: async () => buffer };
-    };
-    const files = [{ path: 'libs/a.js', expected: Buffer.from('new') }, { path: 'libs/deleted.js', expected: null }];
-    const result = await verifyServed(files, { origin: BRANCH, fetchImpl, sleep: async () => {} });
-    assert.deepEqual(result, { ok: true, mismatches: [], attempts: 2 });
-    const stale = await verifyServed(files.slice(0, 1), {
-      origin: BRANCH,
-      attempts: 1,
-      fetchImpl: async () => ({ ok: false, status: 404 }),
-      sleep: async () => {},
-    });
-    assert.deepEqual(stale.mismatches, ['libs/a.js (HTTP 404)']);
-  });
-
-  it('also compares utils.js, so an older copy of an unchanged file is caught', () => {
-    const runtime = ['libs/blocks/a/a.js', 'libs/blocks/b/b.js', 'libs/blocks/c/c.js'].map((path) => ({ path }));
-    const utils = 'libs/utils/utils.js';
-    const single = servedCheckPaths(runtime.slice(0, 1));
-    assert.deepEqual(single, { paths: [runtime[0].path, utils], truncated: false });
-    assert.deepEqual(servedCheckPaths([{ path: utils }]).paths, [utils]);
-    const capped = servedCheckPaths(runtime, { max: 2 });
-    assert.deepEqual(capped, { paths: [runtime[0].path, runtime[1].path, utils], truncated: true });
-  });
-});
-
 describe('renderReport', () => {
-  const entry = {
-    id: 'photoshop', label: 'Photoshop', kind: 'compare', production: 'https://www.adobe.com/products/photoshop.html', a: 'https://a', b: 'https://b',
-  };
-  const plan = {
-    status: 'measure', headSha: '0123456789', aLibs: STAGE, bLibs: BRANCH, entries: [entry], pages: [],
-  };
+  const entry = { id: 'photoshop', label: 'Photoshop', kind: 'compare', gate: true, url: `${WWW}/products/photoshop.html` };
+  const plan = { status: 'measure', mergeBase: 'abcdef0123', headSha: '0123456789', entries: [entry], pages: [] };
   const failing = evaluateResult(compareResult(
     lcps.map((lcp) => ({ lcp })),
     lcps.map((lcp) => ({ lcp: lcp * 1.2 })),
     { id: 'photoshop' },
   ), config);
 
-  it('reports a confirmed regression and whether it blocks', () => {
+  it('reports a confirmed regression, the compared commits and whether it blocks', () => {
     const verdict = { ...confirmVerdict(failing, failing), id: 'photoshop', kind: 'compare' };
     const report = renderReport({ plan, verdicts: [verdict], config });
     assert.equal(report.status, 'fail');
     assert.ok(report.body.startsWith(REPORT_MARKER));
     assert.match(report.body, /### ❌ Performance regression confirmed \(report only, not blocking\)/);
+    assert.match(report.body, /Before: merge base `abcdef0` · After: `0123456`/);
     assert.match(report.body, /\| \[Photoshop\]\(https:\/\/www\.adobe\.com\/products\/photoshop\.html\) \| 3,016 ms → 3,619 ms \| \+603 ms \(\+20\.0%\) \| 0\.008 \|/);
     assert.match(report.body, /LCP regression, confirmed by re-run/);
+    assert.match(report.body, /`perf-traces-\*` artifacts/);
+    assert.match(report.body, /\n- Photoshop: https:\/\/www\.adobe\.com\/products\/photoshop\.html\n/);
     assert.doesNotMatch(renderReport({ plan, verdicts: [verdict], config, enforce: true }).body, /not blocking/);
   });
 
-  it('explains unreproduced slowdowns, stale pages and missing demo pages', () => {
-    const passed = { ...confirmVerdict(failing, { status: 'pass', regressed: [] }), id: 'photoshop', kind: 'compare' };
-    const stalePlan = { ...plan, pages: [{ label: 'Homepage', status: 'stale', drift: ['/libs/utils/utils.js'] }] };
-    const report = renderReport({ plan: stalePlan, verdicts: [passed], config });
-    assert.equal(report.status, 'inconclusive');
+  it('explains unreproduced slowdowns, files that were not swapped and perf-tools warnings', () => {
+    const warned = { ...failing, warnings: [{ kind: 'environment-variability', message: 'spread' }] };
+    const passed = { ...confirmVerdict(warned, { status: 'pass', regressed: [] }), id: 'photoshop', kind: 'compare' };
+    const report = renderReport({
+      plan: {
+        ...plan,
+        sources: { unsupported: ['libs/img/logo.png'], deleted: ['libs/old.js'] },
+        unreleased: ['libs/features/new.js'],
+      },
+      verdicts: [passed],
+      config,
+    });
+    assert.equal(report.status, 'pass');
     assert.match(report.body, /LCP slower, but not reproduced on re-run/);
-    assert.match(report.body, /Homepage: the base branch changed files this page loads \(\/libs\/utils\/utils\.js\)/);
+    assert.match(report.body, /so these changes were not measured: `libs\/img\/logo\.png`/);
+    assert.match(report.body, /Deleting files cannot be emulated \(production still serves them\): `libs\/old\.js`/);
+    assert.match(report.body, /`libs\/features\/new\.js` is not on production yet/);
+    assert.match(report.body, /Photoshop: perf-tools warned `environment-variability`: spread/);
+    assert.doesNotMatch(report.body, /perf-traces/);
+  });
+
+  it('asks for a demo page, and is inconclusive when pages could not be checked', () => {
     const policy = renderReport({
       plan: { status: 'skip', policy: 'Add a demo page.', entries: [], pages: [] },
       config,
     });
     assert.equal(policy.status, 'fail');
     assert.match(policy.body, /### ❌ Demo page needed/);
-  });
-
-  it('is inconclusive, not skipped, when no page was measured but some could not be checked', () => {
     const skipped = { status: 'skip', entries: [], pages: [{ label: 'Homepage', status: 'unaffected' }] };
     assert.equal(renderReport({ plan: skipped, config }).status, 'skipped');
-    const errored = { ...skipped, pages: [...skipped.pages, { label: 'Premiere', status: 'error', reason: 'timeout' }] };
+    const errored = {
+      ...skipped,
+      pages: [...skipped.pages, { label: 'Business', status: 'error', reason: 'did not load Milo' }],
+    };
     const report = renderReport({ plan: errored, config });
     assert.equal(report.status, 'inconclusive');
     assert.match(report.body, /### ⚠️ Performance check inconclusive/);
-    assert.match(report.body, /Premiere: could not be checked \(timeout\)/);
-    const stale = { ...skipped, pages: [{ label: 'Homepage', status: 'stale', drift: ['/libs/utils/utils.js'] }] };
-    assert.equal(renderReport({ plan: stale, config }).status, 'inconclusive');
+    assert.match(report.body, /Business: could not be checked \(did not load Milo\)/);
   });
 });
