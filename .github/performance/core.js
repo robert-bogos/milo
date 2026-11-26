@@ -182,6 +182,15 @@ function isSlow(run, floor) {
   return Number.isFinite(run.benchmarkIndex) && run.benchmarkIndex < floor;
 }
 
+// The most frequent reason among failed pairs or runs, appended to an inconclusive reason.
+function failedReason(reasons) {
+  if (!reasons.length) return '';
+  const counts = new Map();
+  reasons.forEach((reason) => counts.set(reason, (counts.get(reason) || 0) + 1));
+  const [reason, count] = [...counts].sort((x, y) => y[1] - x[1])[0];
+  return `; ${count} failed: ${reason}`;
+}
+
 // Pairs before/after runs and drops pairs measured while the runner was unusually slow.
 export function selectPairs(runs, config = {}) {
   const pairs = new Map();
@@ -251,7 +260,8 @@ function evaluateAfterOnly(result, config) {
     benchmarkIndex: reference,
   };
   if (valid.length < config.minPairs) {
-    return { ...base, status: 'inconclusive', reason: `only ${valid.length} usable runs (need ${config.minPairs})`, regressed: [] };
+    const reason = `only ${valid.length} usable runs (need ${config.minPairs})${failedReason(incomplete.map((run) => run.error || 'missing run'))}`;
+    return { ...base, status: 'inconclusive', reason, regressed: [] };
   }
   const metrics = {};
   Object.entries(config.greenBands).forEach(([key, band]) => {
@@ -288,7 +298,8 @@ export function evaluateResult(result, config) {
     benchmarkIndex: reference,
   });
   if (valid.length < config.minPairs) {
-    return { ...base, status: 'inconclusive', reason: `only ${valid.length} usable pairs (need ${config.minPairs})`, regressed: [] };
+    const reason = `only ${valid.length} usable pairs (need ${config.minPairs})${failedReason(incomplete.map((pair) => pair.reason))}`;
+    return { ...base, status: 'inconclusive', reason, regressed: [] };
   }
   const metrics = {};
   Object.entries(config.metrics).forEach(([key, metric]) => {

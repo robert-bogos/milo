@@ -13,9 +13,36 @@ import { pageUrl } from './core.js';
 
 const WORKER = fileURLToPath(new URL('./engine-worker.js', import.meta.url));
 const METRIC_KEYS = { lcp: 'LCP', cls: 'CLS', tbt: 'TBT', fcp: 'FCP' };
-// Always present in local perf-ab runs: they are not comparable with perf-ab's own US runners.
-const IGNORED_WARNINGS = ['local-results-not-comparable'];
+// local-results-not-comparable: always present in local perf-ab runs (not comparable with
+// perf-ab's own US runners). environment-variability: the CPU benchmark spread, which
+// evaluateResult already handles by discarding pairs from unusually slow runs.
+const IGNORED_WARNINGS = ['local-results-not-comparable', 'environment-variability'];
 const FAILURE = /^perf-tools failed: (.*)$/m;
+// Lighthouse explains its error codes at length, as in "SI (Chrome didn't collect any
+// screenshots ... (SPEEDINDEX_OF_ZERO))": the code is enough.
+const LIGHTHOUSE_EXPLANATION = /\s*\([^()]*\(([A-Z][A-Z0-9_]+)\)\)/g;
+
+export function conciseError(error) {
+  return String(error || 'unknown error')
+    .replace(/^pair job failed:\s*/, '')
+    .replace(LIGHTHOUSE_EXPLANATION, ' ($1)')
+    .slice(0, 200);
+}
+
+/** Why perf-tools measured nothing: each distinct pair error once, most frequent first. */
+export function failureReason(results) {
+  const pairs = results?.pairs || [];
+  const counts = new Map();
+  pairs.filter((pair) => pair.error).forEach((pair) => {
+    const message = conciseError(pair.error);
+    counts.set(message, (counts.get(message) || 0) + 1);
+  });
+  if (!counts.size) return conciseError(results?.error || results?.errorKind);
+  return [...counts]
+    .sort((x, y) => y[1] - x[1])
+    .map(([message, count]) => `${count} of ${pairs.length} pairs: ${message}`)
+    .join('; ');
+}
 
 export function createCertificate(dir) {
   const keyFile = join(dir, 'key.pem');
@@ -75,7 +102,7 @@ export function runsFromResults(results, { afterOnly = false } = {}) {
       variant,
       pair: pair.index - 1,
       ok,
-      error: ok ? undefined : String(pair.error || `no ${name} metrics`).slice(0, 300),
+      error: ok ? undefined : conciseError(pair.error || `no ${name} metrics`),
       metrics: ok ? metricsFrom(pair[name]) : undefined,
       benchmarkIndex: pair.job?.benchmarkIndexes?.[name] ?? null,
     };
@@ -209,7 +236,7 @@ export async function measurePage({
     const served = servedSources(results, out);
     result.served = (manifest.changed || []).filter((path) => served.has(path));
     if (results.status === 'failed') {
-      result.error = `perf-tools could not measure the page: ${String(results.error || results.errorKind || 'unknown error').slice(0, 300)}`;
+      result.error = `perf-tools could not measure the page: ${failureReason(results).slice(0, 300)}`;
     } else if (!result.served.length) {
       result.error = 'the changed files were not requested during the measured loads';
     }

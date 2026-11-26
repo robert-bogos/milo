@@ -148,6 +148,14 @@ jobs:
         working-directory: perf-engine
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
+      # perf-tools rejects a load without a Speed Index, which does not gate here. Pages that
+      # are covered late in the load (acrobat.html on US runners) get a Speed Index of 0.
+      - name: Make Speed Index optional in perf-tools
+        working-directory: perf-engine
+        run: |
+          sed -i "s/^export const REQUIRED_KEYS = \['FCP', 'LCP', 'SI', 'CLS'\];$/export const REQUIRED_KEYS = ['FCP', 'LCP', 'CLS'];/" lib/pagespeed/stats.mjs
+          grep -q "^export const REQUIRED_KEYS = \['FCP', 'LCP', 'CLS'\];$" lib/pagespeed/stats.mjs
+
       - name: Set up Chrome
         run: node cli.js chrome
 
@@ -173,7 +181,8 @@ jobs:
           path: ${{ env.PERF_OUT_DIR }}/result-*.json
           retention-days: 14
 
-      # Lighthouse reports and traces of every run, for pages that did not pass.
+      # Lighthouse reports of every run, for pages that did not pass. Traces (about 65 MB each)
+      # are kept for the first two pairs only, one in each order.
       - name: Upload the Lighthouse reports
         if: ${{ !cancelled() && (steps.measure.outputs.traces == 'true' || failure()) }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -182,6 +191,10 @@ jobs:
           path: |
             ${{ env.PERF_OUT_DIR }}/engine
             !${{ env.PERF_OUT_DIR }}/engine/**/devtoolslog.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/trace.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/report.html
+            !${{ env.PERF_OUT_DIR }}/engine/**/pair[3-9]/**/trace.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/pair1[0-9]/**/trace.json
           retention-days: 7
           if-no-files-found: ignore
 
@@ -272,6 +285,14 @@ jobs:
         working-directory: perf-engine
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
+      # perf-tools rejects a load without a Speed Index, which does not gate here. Pages that
+      # are covered late in the load (acrobat.html on US runners) get a Speed Index of 0.
+      - name: Make Speed Index optional in perf-tools
+        working-directory: perf-engine
+        run: |
+          sed -i "s/^export const REQUIRED_KEYS = \['FCP', 'LCP', 'SI', 'CLS'\];$/export const REQUIRED_KEYS = ['FCP', 'LCP', 'CLS'];/" lib/pagespeed/stats.mjs
+          grep -q "^export const REQUIRED_KEYS = \['FCP', 'LCP', 'CLS'\];$" lib/pagespeed/stats.mjs
+
       - name: Set up Chrome
         run: node cli.js chrome
 
@@ -297,7 +318,8 @@ jobs:
           path: ${{ env.PERF_OUT_DIR }}/result-*.json
           retention-days: 14
 
-      # Lighthouse reports and traces of every run, for pages that did not pass.
+      # Lighthouse reports of every run, for pages that did not pass. Traces (about 65 MB each)
+      # are kept for the first two pairs only, one in each order.
       - name: Upload the Lighthouse reports
         if: ${{ !cancelled() && (steps.measure.outputs.traces == 'true' || failure()) }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -306,6 +328,10 @@ jobs:
           path: |
             ${{ env.PERF_OUT_DIR }}/engine
             !${{ env.PERF_OUT_DIR }}/engine/**/devtoolslog.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/trace.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/report.html
+            !${{ env.PERF_OUT_DIR }}/engine/**/pair[3-9]/**/trace.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/pair1[0-9]/**/trace.json
           retention-days: 7
           if-no-files-found: ignore
 

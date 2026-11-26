@@ -1,26 +1,32 @@
 # Per-PR performance checks
 
-Measures the [MVP pages](config.json) that load the code a pull request changes, before and after
-the change, and comments the result on the pull request. Design:
-[discussion #393](https://github.com/orgs/adobecom/discussions/393) (MWPW-213684).
+Measures the [MVP pages](config.json) and demo pages that load the code a pull request changes,
+before and after the change, and comments the result on the pull request. Design:
+[discussion #393](https://github.com/orgs/adobecom/discussions/393) (MWPW-213684). The pages are
+measured with [adobecom/perf-tools](https://github.com/adobecom/perf-tools) (perf-ab) at the commit
+pinned in the workflow (`PERF_TOOLS_REF`).
 
 ## How a check runs
 
 | Job | What it does |
 | --- | --- |
-| Find affected pages | Lists the changed `libs/` files, checks that aem.live serves both branches' committed code (the changed files and `libs/utils/utils.js`) with the CORS header that pages on other hosts need, reads demo pages from the description and loads every MVP and demo page once per variant to record the `/libs/` files it requests. Pages that load a changed file are measured. |
-| Measure (one job per page) | One warm-up per variant, then 7 interleaved pairs (AB, BA, AB…). Every run uses a fresh Chrome with a cold cache, Lighthouse mobile with simulated throttling (the PageSpeed Insights defaults) and `martech=off`. |
+| Find affected pages | Lists the `libs/` files the pull request changes since it branched from the base branch, reads demo pages from the description and loads every MVP and demo page once (production, `martech=off`) to record the `/libs/` files it requests. Pages that request a changed file are measured. Saves the before and after versions of the files to swap. |
+| Measure (one job per page) | perf-tools loads the production page with `martech=off` in 10 counterbalanced cold pairs (AB, BA…): Lighthouse 13.6.0 mobile defaults with real DevTools throttling (Slow 4G, 4× CPU), a fresh Chrome and profile per load, and invalid loads retried. One unmeasured load first absorbs the slower first load of a fresh runner. Its proxy replaces the page's Milo files with the before or after versions, served from the runner. |
 | Pick pages to re-measure | Pages that fail are measured again on a new runner. |
 | Re-measure | Same as Measure. |
 | Report | One pull request comment, updated in place, and the job summary. |
 
-- **Before** loads Milo from the base branch (`stage--milo--adobecom.aem.live`), **after** from the
-  pull request branch (`<branch>--milo--<owner>.aem.live`). Consumer pages get `?milolibs=`; Milo
-  pages are loaded from the branch host.
-- The tooling and thresholds always come from the base branch, so a pull request cannot change its
-  own check. The check uses the base branch as it is when the check starts (GitHub's
-  `pull_request.base.sha` stays at the commit from when the pull request was opened).
+- Both sides run the pull request's base code, not production's: files that differ between
+  production (`adobecom/milo` `main`) and the merge base are swapped in at their merge-base version
+  on both sides, and the changed files at their merge-base (before) and pull request (after)
+  versions. Content, other sites' code and third parties are production.
+- Lighthouse reports of pages that do not pass are kept as `perf-traces-*` artifacts for 7 days,
+  with the traces of the first two pairs (one in each order), so custom performance marks and the
+  LCP element can be checked.
+- The tooling, thresholds and perf-tools version come from the base branch, so a pull request
+  cannot change its own check. The check uses the base branch as it is when the check starts.
 - Changes outside `libs/` (tests, docs, Nala, tooling) skip the check.
+- Nothing is deployed: the files are read from git, so no branch needs to be served on aem.live.
 
 ## When a page fails
 
@@ -39,36 +45,37 @@ A gated metric regresses when **both** are true for the valid pairs:
 
 - A page fails only when the same metric regresses in the first round **and** in the re-run.
 - **Runner calibration:** a pair is dropped when either run's Lighthouse `benchmarkIndex` is below
-  80% of the job's median, meaning the runner was unusually slow. Up to 3 extra pairs replace dropped
-  or failed pairs. With fewer than 5 valid pairs the page is inconclusive (with 5 pairs the
-  smallest possible p is 1/32, with 7 it is 1/128).
-- **Inconclusive never fails the check.** Causes: too few valid pairs, a missing or inconclusive
-  re-run, a page that could not be loaded to check which files it uses, or the base branch changing
-  files the page loads. If the base branch changed them after the pull request branched, the page
-  is not measured; update the branch.
+  80% of the job's median, meaning the runner was unusually slow. With fewer than 7 valid pairs the
+  page is inconclusive (with 7 pairs the smallest possible p is 1/128).
+- **Inconclusive never fails the check.** Causes: too few valid pairs, perf-tools errors, a missing
+  or inconclusive re-run, a page that could not be loaded to check which files it uses, or a page
+  that loads Milo from another host.
 
 ## Demo pages
 
-Add a published page with real content that uses the changed code to the pull request description:
+Add a page with real content that uses the changed code to the pull request description:
 
-    - Demo: https://main--<site>--adobecom.aem.live/<page>
+    - Demo: https://www.adobe.com/<page>.html
 
+- Production `*.adobe.com` pages, or published Milo pages on `https://main--milo--adobecom.aem.live`
+  (for example under `/drafts/`). perf-tools swaps files only on the page's own host: other
+  aem.live sites and stage hosts load Milo from another host, and `.aem.page` drafts are not
+  published.
 - Up to two demo pages. Editing the description re-runs the check.
-- Only `.aem.live` pages; drafts are not representative. Production `adobe.com` pages cannot load
-  branch code, so use their aem.live mirror.
-- Demo pages are always measured. They decide the result only when no MVP page loads the changed
-  code; otherwise they are shown for reference.
+- Demo pages decide the result only when no MVP page loads the changed code; otherwise they are
+  shown for reference.
 - If `libs/` changed, no MVP page loads the changed files and there is no demo page, the check fails
   with *Demo page needed*.
-- **New blocks** have no "before": a `.aem.page` draft is accepted and the page is checked against
+- Production only shows files that are released. When the pull request changes files that are not
+  on production yet, demo pages are measured even if they do not request them.
+- **New blocks** have no "before": publish a Milo page that uses the block. It is checked against
   the green Core Web Vitals bands (median of the runs). CLS above 0.1 fails. LCP above 2.5 s and
-  TBT above 200 ms are shown only, because simulated mobile LCP is above 2.5 s on most Adobe pages.
+  TBT above 200 ms are shown only, because throttled mobile LCP is above 2.5 s on most Adobe pages.
 
 ## Configuration
 
-`config.json` holds the pages, metric limits, green bands, pair counts and runner calibration.
-`throttlingMethod` (`simulate`, `devtools` or `provided`) and an optional Lighthouse `throttling`
-object can be changed for experiments.
+`config.json` holds the pages, `martechOff`, metric limits, green bands, pair counts (`pairs`, `minPairs`),
+runner calibration and the production repository.
 
 | Repository variable | Effect |
 | --- | --- |
@@ -78,27 +85,24 @@ object can be changed for experiments.
 
 ## Requirements
 
-- AEM Code Sync on the repository, with its tools.aem.live setup finished, so every branch is
-  served at `<branch>--milo--<owner>.aem.live`. `<branch>--milo--<owner>` must be at most 63
-  characters. Code Sync copies a whole branch only when the branch is created or force-pushed;
-  other pushes copy just the changed files.
-- The AEM site configuration must add `access-control-allow-origin: *` for `/libs/**`, as
-  adobecom/milo's does ([custom headers](https://www.aem.live/docs/custom-headers)). MVP pages run
-  on other hosts and import Milo as ES modules, which browsers block without this header. A fork's
-  new site configuration does not have it. aem.live adds headers only when Code Sync copies a file,
-  so force-push existing branches after adding it.
-- Runner access to `registry.npmjs.org`, the Chrome download (unless Chrome is installed),
-  `*.aem.live` and the third-party hosts the pages load.
-- Up to 17 page jobs per round (15 MVP pages and 2 demo pages).
+- Runner access to `github.com` (git and perf-tools), `registry.npmjs.org`, the Chrome download
+  (unless Chrome is installed), the measured pages and the third-party hosts they load.
+- US runners. perf-tools warns when the page reports a non-US visitor (for example a cookie banner
+  as LCP); the report shows the warning.
+- Up to 17 page jobs per round (15 MVP pages and 2 demo pages), each about 7–25 minutes. A check
+  takes about 30 minutes, or about an hour when a page is re-measured.
 - Pull requests from forks get a read-only token, so their report is only in the job summary.
 
 ## Limitations
 
-- Lab data, not field data. Pages with a late LCP need a large regression to exceed +10%: Photoshop
-  has a simulated LCP of about 37 s because its LCP text appears about 5 s after navigation.
+- Lab data, not field data.
+- Only text files (`.js`, `.css`, `.json`, `.html`, `.svg`, `.txt`) are swapped; changed images and
+  fonts are listed but not measured. Deleted files are not removed from the page.
 - Discovery does not scroll or click, so code that loads only on interaction is not detected.
-- Simulated throttling models network and main-thread work; a pure timer delay counts less than it
-  would on a real device.
+- perf-tools measures at most 10 pairs per page.
+- Speed Index does not gate, so the workflow makes it optional in perf-tools, which otherwise
+  rejects a load without one. On US runners, `acrobat.html` is covered by a near-white layer about
+  20 seconds into the load, which makes its Speed Index 0. LCP and CLS are not affected.
 
 ## Local use
 
@@ -106,11 +110,10 @@ object can be changed for experiments.
 cd .github/performance
 npm ci --ignore-scripts
 npm test
-PERF_PAGE='{"id":"homepage","kind":"compare","gate":true,"round":1,
-  "a":"https://main--da-homepage--adobecom.aem.live/homepage/index-loggedout?milolibs=stage--milo--adobecom&martech=off",
-  "b":"https://main--da-homepage--adobecom.aem.live/homepage/index-loggedout?milolibs=<branch>--milo--adobecom&martech=off",
-  "aLibs":"https://stage--milo--adobecom.aem.live","bLibs":"https://<branch>--milo--adobecom.aem.live"}' \
-  node cli.js measure
 ```
 
-Results are written to `perf-output/`, or to `PERF_OUT_DIR`.
+`node cli.js measure` needs a perf-tools checkout (`PERF_TOOLS_DIR`, with
+`npm ci --omit=dev --ignore-scripts`), a sources directory from `node cli.js plan`
+(`PERF_SOURCES_DIR`) and the page (`PERF_PAGE`, a matrix entry from the plan). Results are written
+to `perf-output/`, or to `PERF_OUT_DIR`. Outside the US, pages may show a cookie banner, which
+changes LCP.

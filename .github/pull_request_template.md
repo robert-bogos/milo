@@ -9,3 +9,5 @@ Resolves: [MWPW-NUMBER](https://jira.corp.adobe.com/browse/MWPW-NUMBER)
 **Test URLs:**
 - Before: https://main--milo--adobecom.aem.page/?martech=off
 - After: https://<branch>--milo--adobecom.aem.page/?martech=off
+- Demo: https://www.adobe.com/<page>.html
+<!-- Demo: a production *.adobe.com page, or a published https://main--milo--adobecom.aem.live page, with real content that uses the changed code. The performance check measures up to two. -->

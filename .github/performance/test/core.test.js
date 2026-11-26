@@ -208,8 +208,13 @@ describe('evaluateResult', () => {
 
   it('is inconclusive without enough usable pairs', () => {
     const result = compareResult(lcps.map((lcp) => ({ lcp })), lcps.map((lcp) => ({ lcp })));
-    result.runs.slice(0, 6).forEach((sample) => { sample.ok = false; });
-    assert.equal(evaluateResult(result, config).status, 'inconclusive');
+    result.runs.slice(0, 6).forEach((sample) => {
+      sample.ok = false;
+      sample.error = 'SI (SPEEDINDEX_OF_ZERO)';
+    });
+    const verdict = evaluateResult(result, config);
+    assert.equal(verdict.status, 'inconclusive');
+    assert.equal(verdict.reason, 'only 4 usable pairs (need 7); 3 failed: SI (SPEEDINDEX_OF_ZERO)');
     assert.equal(evaluateResult(undefined, config).status, 'inconclusive');
     assert.equal(evaluateResult({ ...result, error: 'setup' }, config).reason, 'setup');
   });

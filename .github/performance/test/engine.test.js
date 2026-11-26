@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '../core.js';
 import {
-  buildSpec, createCertificate, engineWarnings, loadSources, measurePage, runsFromResults,
-  startSourceServer,
+  buildSpec, conciseError, createCertificate, engineWarnings, failureReason, loadSources,
+  measurePage, runsFromResults, startSourceServer,
 } from '../engine.js';
 
 const root = mkdtempSync(join(tmpdir(), 'perf-engine-test-'));
@@ -65,10 +65,10 @@ describe('perf-ab specs and results', () => {
         benchmarkIndex: 1400,
       },
       {
-        variant: 'a', pair: 1, ok: false, error: 'pair job failed: timeout', metrics: undefined, benchmarkIndex: null,
+        variant: 'a', pair: 1, ok: false, error: 'timeout', metrics: undefined, benchmarkIndex: null,
       },
       {
-        variant: 'b', pair: 1, ok: false, error: 'pair job failed: timeout', metrics: undefined, benchmarkIndex: null,
+        variant: 'b', pair: 1, ok: false, error: 'timeout', metrics: undefined, benchmarkIndex: null,
       },
     ]);
     const single = runsFromResults({
@@ -82,18 +82,30 @@ describe('perf-ab specs and results', () => {
     assert.deepEqual(single.map((run) => [run.variant, run.ok, run.metrics.lcp, run.benchmarkIndex]), [['b', true, 2000, 1200]]);
   });
 
-  it('keeps one warning of each kind, without the one every local run has', () => {
+  it('keeps one warning of each kind, without those the check already handles', () => {
     const warnings = engineWarnings({
       warnings: [
         { kind: 'local-results-not-comparable', message: 'local' },
         { kind: 'environment-variability', message: 'benchmark spread 1.4' },
+        { kind: 'production-source-drift', message: 'drift' },
       ],
-      sourceWarnings: [{ kind: 'environment-variability', message: 'again' }, { kind: 'other', pair: 2 }],
+      sourceWarnings: [{ kind: 'production-source-drift', message: 'again' }, { kind: 'other', pair: 2 }],
     });
     assert.deepEqual(warnings, [
-      { kind: 'environment-variability', message: 'benchmark spread 1.4' },
+      { kind: 'production-source-drift', message: 'drift' },
       { kind: 'other', message: '' },
     ]);
+  });
+
+  it('summarizes why perf-tools measured nothing', () => {
+    const si = 'pair job failed: Lighthouse metric(s) missing or not finite: SI (Chrome didn\'t collect any screenshots during the page load. Please make sure there is content visible on the page, and then try re-running Lighthouse. (SPEEDINDEX_OF_ZERO))';
+    assert.equal(conciseError(si), 'Lighthouse metric(s) missing or not finite: SI (SPEEDINDEX_OF_ZERO)');
+    const pairs = [si, si, 'pair job failed: timeout'].map((error, i) => ({ index: i + 1, error }));
+    assert.equal(
+      failureReason({ status: 'failed', error: 'pair1: …', pairs }),
+      '2 of 3 pairs: Lighthouse metric(s) missing or not finite: SI (SPEEDINDEX_OF_ZERO); 1 of 3 pairs: timeout',
+    );
+    assert.equal(failureReason({ status: 'failed', errorKind: 'egress' }), 'egress');
   });
 });
 
@@ -153,13 +165,20 @@ export async function runLocal({ spec, out, measurePair }) {
     lighthouseVersion: '13.6.0',
     chromeVersion: '140.0.0.0',
     attempts: job.attempts,
+    jobs: job.calls,
     spec,
   };
   write('results.json', results);
   return results;
 }
 `;
-const FAKE_JOB = 'export async function runJob({ attempts }) { return { status: \'ok\', attempts }; }\n';
+const FAKE_JOB = `
+const calls = [];
+export async function runJob({ spec, pair, attempts }) {
+  calls.push({ names: spec.names, runs: spec.runs, pair, attempts });
+  return { status: 'ok', attempts, calls };
+}
+`;
 
 describe('measurePage', () => {
   const toolsDir = join(root, 'perf-tools');
@@ -195,6 +214,10 @@ describe('measurePage', () => {
     assert.deepEqual(result.warnings, []);
     const results = JSON.parse(readFileSync(join(root, 'work', 'photoshop', 'perf-ab', 'results.json'), 'utf8'));
     assert.equal(results.attempts, 2);
+    assert.deepEqual(results.jobs, [
+      { names: ['after'], runs: 1, pair: 1, attempts: 1 },
+      { names: ['before', 'after'], runs: 3, pair: 1, attempts: 2 },
+    ]);
     assert.equal(results.spec.runs, 3);
     assert.equal(results.spec.variants.before.url, 'https://www.adobe.com/products/photoshop.html?martech=off');
   });
