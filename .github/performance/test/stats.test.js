@@ -1,6 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { wilcoxonGreater } from '../stats.js';
+import { hodgesLehmann, wilcoxonGreater } from '../stats.js';
+
+describe('hodgesLehmann', () => {
+  it('is the median of the pairwise averages, which one outlier barely moves', () => {
+    // Averages of every two of 1, 2, 3, 100, each with itself too:
+    // 1, 1.5, 2, 2, 2.5, 3, 50.5, 51, 51.5, 100. The mean of the differences is 26.5.
+    assert.equal(hodgesLehmann([1, 2, 3, 100]), 2.75);
+  });
+});
 
 describe('wilcoxonGreater', () => {
   it('matches the exact one-sided p-value from R', () => {

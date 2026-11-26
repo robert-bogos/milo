@@ -32,9 +32,15 @@ pinned in the workflow (`PERF_TOOLS_REF`).
 
 A gated metric regresses when **both** are true for the valid pairs:
 
-1. the mean got worse by more than `max(relative × before, absolute)`;
+1. the [Hodges–Lehmann estimate](https://en.wikipedia.org/wiki/Hodges%E2%80%93Lehmann_estimator)
+   of the paired differences (the median of the averages of every two of them) is worse by more
+   than `max(relative × median before, absolute)`;
 2. a one-sided [Wilcoxon signed-rank test](https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test)
    on the paired differences gives p < 0.05 (exact distribution, tied ranks averaged).
+
+Unlike the mean, the estimate is not skewed by a single outlier load: one 26.6-second load among
+loads of about 5.8 seconds made a page that was 15% slower look 16% faster on average. The report
+shows medians and this estimate.
 
 | Metric | Gates | Limit |
 | --- | --- | --- |

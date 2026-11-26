@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { mean, median, wilcoxonGreater } from './stats.js';
+import { hodgesLehmann, median, wilcoxonGreater } from './stats.js';
 
 export const REPORT_MARKER = '<!-- milo-performance-report -->';
 export const COMMENT_MAX_BYTES = 60000;
@@ -225,10 +225,12 @@ export function selectRuns(runs, config = {}) {
 export function compareMetric(pairs, key, metric, alpha) {
   const usable = pairs.filter((pair) => Number.isFinite(pair.a.metrics?.[key])
     && Number.isFinite(pair.b.metrics?.[key]));
-  const before = mean(usable.map((pair) => pair.a.metrics[key]));
-  const after = mean(usable.map((pair) => pair.b.metrics[key]));
-  const delta = after - before;
-  const { p, n } = wilcoxonGreater(usable.map((pair) => pair.b.metrics[key] - pair.a.metrics[key]));
+  const differences = usable.map((pair) => pair.b.metrics[key] - pair.a.metrics[key]);
+  // Medians and the Hodges–Lehmann shift, so that one outlier load cannot hide or fake a change.
+  const before = median(usable.map((pair) => pair.a.metrics[key]));
+  const after = median(usable.map((pair) => pair.b.metrics[key]));
+  const delta = hodgesLehmann(differences);
+  const { p, n } = wilcoxonGreater(differences);
   const limit = Math.max((metric.relative || 0) * before, metric.absolute || 0);
   const exceeds = usable.length > 0 && delta > limit;
   const significant = p < alpha;
@@ -426,9 +428,10 @@ function methodLine(plan, config) {
   return `<sub>[perf-tools](https://github.com/adobecom/perf-tools) on the live pages, ${config.device}, `
     + `${config.pairs} interleaved before/after pairs per page. Before: merge base \`${sha(plan.mergeBase)}\` · `
     + `After: \`${sha(plan.headSha)}\` (Milo files that differ from production are swapped in on both sides). `
-    + `A page fails when mean ${lcp.label} is more than ${Math.round(lcp.relative * 100)}% slower `
-    + `(or mean CLS rises by more than ${cls.absolute}) and a one-sided Wilcoxon signed-rank test gives p < ${config.alpha}, `
-    + 'both in the first run and in a re-run.</sub>';
+    + `A page fails when ${lcp.label} is more than ${Math.round(lcp.relative * 100)}% slower `
+    + `(or CLS rises by more than ${cls.absolute}) and a one-sided Wilcoxon signed-rank test gives p < ${config.alpha}, `
+    + 'both in the first run and in a re-run. Values are medians; Δ is the Hodges–Lehmann estimate '
+    + 'of the paired differences, which a single outlier load cannot skew.</sub>';
 }
 
 const fileList = (paths, max = 5) => `${paths.slice(0, max).map((path) => `\`${path}\``).join(', ')}${paths.length > max ? ` and ${paths.length - max} more` : ''}`;

@@ -163,9 +163,22 @@ describe('evaluateResult', () => {
       lcps.map((lcp) => ({ lcp })),
       lcps.map((lcp, i) => ({ lcp: i === 3 ? lcp + 5000 : lcp - 20 })),
     ), config);
-    assert.equal(verdict.metrics.lcp.exceeds, true);
+    assert.equal(verdict.metrics.lcp.delta, -20);
     assert.equal(verdict.metrics.lcp.significant, false);
     assert.equal(verdict.status, 'pass');
+  });
+
+  it('fails a regression that a single outlier load hides from the mean', () => {
+    // One 26 s "before" load makes the mean LCP 35% faster; the other 9 pairs are 15% slower.
+    const tenPairs = [...lcps, 3040, 2990, 3060];
+    const verdict = evaluateResult(compareResult(
+      tenPairs.map((lcp, i) => ({ lcp: i === 0 ? 26000 : lcp })),
+      tenPairs.map((lcp) => ({ lcp: lcp * 1.15 })),
+    ), config);
+    assert.equal(verdict.status, 'fail');
+    assert.equal(verdict.metrics.lcp.before, 3030);
+    assert.equal(Math.round(verdict.metrics.lcp.relative * 100), 15);
+    assert.equal(verdict.metrics.lcp.p, 43 / 1024);
   });
 
   it('passes a consistent slowdown below the threshold', () => {
@@ -266,7 +279,8 @@ describe('renderReport', () => {
     assert.ok(report.body.startsWith(REPORT_MARKER));
     assert.match(report.body, /### ❌ Performance regression confirmed \(report only, not blocking\)/);
     assert.match(report.body, /Before: merge base `abcdef0` · After: `0123456`/);
-    assert.match(report.body, /\| \[Photoshop\]\(https:\/\/www\.adobe\.com\/products\/photoshop\.html\) \| 3,016 ms → 3,619 ms \| \+603 ms \(\+20\.0%\) \| 0\.008 \|/);
+    assert.match(report.body, /\| \[Photoshop\]\(https:\/\/www\.adobe\.com\/products\/photoshop\.html\) \| 3,010 ms → 3,612 ms \| \+603 ms \(\+20\.0%\) \| 0\.008 \|/);
+    assert.match(report.body, /Values are medians; Δ is the Hodges–Lehmann estimate/);
     assert.match(report.body, /LCP regression, confirmed by re-run/);
     assert.match(report.body, /`perf-traces-\*` artifacts/);
     assert.match(report.body, /\n- Photoshop: https:\/\/www\.adobe\.com\/products\/photoshop\.html\n/);

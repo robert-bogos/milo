@@ -1,13 +1,21 @@
-export function mean(values) {
-  if (!values.length) return NaN;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
 export function median(values) {
   if (!values.length) return NaN;
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+/**
+ * Hodges–Lehmann estimate of paired differences: the median of the averages of every two of them
+ * (each with itself too). It is the shift that the Wilcoxon signed-rank test tests, and unlike the
+ * mean, one outlier cannot move it far.
+ */
+export function hodgesLehmann(differences) {
+  const averages = [];
+  differences.forEach((value, i) => {
+    for (let j = i; j < differences.length; j += 1) averages.push((value + differences[j]) / 2);
+  });
+  return median(averages);
 }
 
 // Ranks starting at 1; tied values share their average rank.
