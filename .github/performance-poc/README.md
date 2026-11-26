@@ -16,4 +16,8 @@ unchanged `.github/performance` tooling instead:
 - `perf-poc-accuracy.yaml`: on push to `perf-poc-accuracy`, measures stage against itself (A/A) and
   against injected regressions in the "after" variant (250 ms of main-thread work at page start, a
   150 px layout shift after the first content), each twice on separate runners, and summarizes
-  false failures and detections in the run summary.
+  false failures and detections in the run summary. On the `perf-poc-accuracy` branch it runs
+  `accuracy2.mjs` instead: small regressions (`cpuN` = N ms of work, `clsN` = an N px shift), 15
+  pairs and 2 warm-ups per variant, optional longer quiet windows (`quiet`), and every run re-audited
+  with pinned network latencies and with CPU slowdown normalised by benchmarkIndex, so decision
+  rules can be compared offline from the uploaded JSONL artifacts.

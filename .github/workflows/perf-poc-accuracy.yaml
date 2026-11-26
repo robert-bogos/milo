@@ -26,29 +26,29 @@ jobs:
       - name: Build the matrix
         id: matrix
         working-directory: .
+        # Each group: pages x scenarios x settings x rounds. Scenarios: aa (A/A), cpuN (N ms of
+        # main-thread work at page start), clsN (an N px layout shift after the first content).
         env:
-          AA_PAGES: >-
-            homepage acrobat photoshop firefly acrobat-plans cc-plans firefly-plans special-offers
-            cc-pro acrobat-studio pdf-essentials creativity-design firefly-landpa premiere business
-          REGRESSION_PAGES: homepage acrobat photoshop cc-plans business
-          REGRESSIONS: cpu250 cls
+          MATRIX_GROUPS: >-
+            [{"pages":["homepage"],"scenarios":["cpu50","cpu80","cpu120"],"rounds":4},{"pages":["acrobat"],"scenarios":["cpu150","cpu200","cpu275"],"rounds":4},{"pages":["business"],"scenarios":["cpu150","cpu200","cpu250"],"rounds":4},{"pages":["photoshop"],"scenarios":["cpu300","cpu400","cpu550"],"rounds":4},{"pages":["homepage","acrobat"],"scenarios":["cls6"],"rounds":4},{"pages":["firefly","photoshop"],"scenarios":["cls6","cls10"],"rounds":2},{"pages":["creativity-design","firefly-landpa"],"scenarios":["cls10","cls20"],"rounds":2},{"pages":["acrobat-plans","pdf-essentials","special-offers","homepage","firefly-plans"],"scenarios":["aa"],"settings":["default","quiet"],"rounds":2}]
         run: |
           node -e '
-            const words = (name) => process.env[name].split(/\s+/).filter(Boolean);
             const include = [];
-            for (const round of [1, 2]) {
-              words("AA_PAGES").forEach((page) => include.push({ page, scenario: "aa", round }));
-              words("REGRESSION_PAGES").forEach((page) => words("REGRESSIONS")
-                .forEach((scenario) => include.push({ page, scenario, round })));
-            }
+            JSON.parse(process.env.MATRIX_GROUPS).forEach((group) => {
+              for (let round = 1; round <= group.rounds; round += 1) {
+                group.pages.forEach((page) => group.scenarios.forEach((scenario) => (group.settings || ["default"])
+                  .forEach((settings) => include.push({ page, scenario, settings, round }))));
+              }
+            });
             console.log(`matrix=${JSON.stringify({ include })}`);
+            console.error(`${include.length} jobs`);
           ' >> "$GITHUB_OUTPUT"
 
   measure:
-    name: ${{ matrix.page }} ${{ matrix.scenario }} round ${{ matrix.round }}
+    name: ${{ matrix.page }} ${{ matrix.scenario }} ${{ matrix.settings }} round ${{ matrix.round }}
     needs: matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
@@ -78,43 +78,17 @@ jobs:
         env:
           POC_PAGE: ${{ matrix.page }}
           POC_SCENARIO: ${{ matrix.scenario }}
+          POC_SETTINGS: ${{ matrix.settings }}
           POC_ROUND: ${{ matrix.round }}
-          POC_OUT: ${{ github.workspace }}/accuracy/${{ matrix.page }}-${{ matrix.scenario }}-r${{ matrix.round }}.jsonl
-        run: node ../performance-poc/accuracy.mjs "$POC_PAGE" "$POC_SCENARIO"
+          POC_PAIRS: 15
+          POC_WARMUPS: 2
+          POC_OUT: ${{ github.workspace }}/accuracy/${{ matrix.page }}-${{ matrix.scenario }}-${{ matrix.settings }}-r${{ matrix.round }}.jsonl
+        run: node ../performance-poc/accuracy2.mjs "$POC_PAGE" "$POC_SCENARIO"
 
       - name: Upload the result
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: accuracy-${{ matrix.page }}-${{ matrix.scenario }}-r${{ matrix.round }}
+          name: acc2-${{ matrix.page }}-${{ matrix.scenario }}-${{ matrix.settings }}-r${{ matrix.round }}
           path: ${{ github.workspace }}/accuracy/
           retention-days: 14
-
-  summary:
-    name: Summarize
-    needs: measure
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out the tooling
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          sparse-checkout: |
-            .github/performance
-            .github/performance-poc
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-
-      - name: Download the results
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          pattern: accuracy-*
-          merge-multiple: true
-          path: ${{ runner.temp }}/accuracy
-
-      - name: Summarize
-        run: node ../performance-poc/summarize.mjs "$RUNNER_TEMP/accuracy"
