@@ -282,3 +282,5 @@ export default async function init(el) {
     el.prepend(expandAllContainer);
   }
 }
+
+// Perf-check validation only: a comment-only change. Never merge.
