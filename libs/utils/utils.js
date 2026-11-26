@@ -3530,3 +3530,5 @@ export function loadLana(options = {}) {
 }
 
 export const reloadPage = () => window.location.reload();
+
+// Perf-check validation only: a second comment-only change (A/A). Never merge.
