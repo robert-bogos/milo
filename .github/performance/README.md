@@ -20,9 +20,9 @@ pinned in the workflow (`PERF_TOOLS_REF`).
   production (`adobecom/milo` `main`) and the merge base are swapped in at their merge-base version
   on both sides, and the changed files at their merge-base (before) and pull request (after)
   versions. Content, other sites' code and third parties are production.
-- Lighthouse reports of pages that do not pass are kept as `perf-traces-*` artifacts for 7 days,
-  with the traces of the first two pairs (one in each order), so custom performance marks and the
-  LCP element can be checked.
+- Lighthouse HTML reports of pages that do not pass are kept as `perf-traces-*` artifacts for 7
+  days, with the traces of the first two pairs (one in each order), so custom performance marks and
+  the LCP element can be checked.
 - The tooling, thresholds and perf-tools version come from the base branch, so a pull request
   cannot change its own check. The check uses the base branch as it is when the check starts.
 - Changes outside `libs/` (tests, docs, Nala, tooling) skip the check.

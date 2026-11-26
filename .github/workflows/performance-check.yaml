@@ -181,8 +181,9 @@ jobs:
           path: ${{ env.PERF_OUT_DIR }}/result-*.json
           retention-days: 14
 
-      # Lighthouse reports of every run, for pages that did not pass. Traces (about 65 MB each)
-      # are kept for the first two pairs only, one in each order.
+      # Lighthouse reports of every run, for pages that did not pass. The HTML report includes the
+      # report JSON. Traces (up to about 65 MB each) are kept for the first two pairs only, one in
+      # each order.
       - name: Upload the Lighthouse reports
         if: ${{ !cancelled() && (steps.measure.outputs.traces == 'true' || failure()) }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -191,8 +192,8 @@ jobs:
           path: |
             ${{ env.PERF_OUT_DIR }}/engine
             !${{ env.PERF_OUT_DIR }}/engine/**/devtoolslog.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/report.json
             !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/trace.json
-            !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/report.html
             !${{ env.PERF_OUT_DIR }}/engine/**/pair[3-9]/**/trace.json
             !${{ env.PERF_OUT_DIR }}/engine/**/pair1[0-9]/**/trace.json
           retention-days: 7
@@ -318,8 +319,9 @@ jobs:
           path: ${{ env.PERF_OUT_DIR }}/result-*.json
           retention-days: 14
 
-      # Lighthouse reports of every run, for pages that did not pass. Traces (about 65 MB each)
-      # are kept for the first two pairs only, one in each order.
+      # Lighthouse reports of every run, for pages that did not pass. The HTML report includes the
+      # report JSON. Traces (up to about 65 MB each) are kept for the first two pairs only, one in
+      # each order.
       - name: Upload the Lighthouse reports
         if: ${{ !cancelled() && (steps.measure.outputs.traces == 'true' || failure()) }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -328,8 +330,8 @@ jobs:
           path: |
             ${{ env.PERF_OUT_DIR }}/engine
             !${{ env.PERF_OUT_DIR }}/engine/**/devtoolslog.json
+            !${{ env.PERF_OUT_DIR }}/engine/**/report.json
             !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/trace.json
-            !${{ env.PERF_OUT_DIR }}/engine/**/rejected/**/report.html
             !${{ env.PERF_OUT_DIR }}/engine/**/pair[3-9]/**/trace.json
             !${{ env.PERF_OUT_DIR }}/engine/**/pair1[0-9]/**/trace.json
           retention-days: 7
