@@ -3,9 +3,9 @@ import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } f
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import {
-  classifyChanges, classifyPage, confirmVerdict, evaluateResult, expectedLibsOrigin, isRuntimePath,
-  libsPaths, loadConfig, measureEntry, parseDemoUrls, parseNameStatus, previewOrigin, renderReport,
-  validateDemoUrl, variantHostError, variantUrl, verifyServed,
+  classifyChanges, classifyPage, confirmVerdict, evaluateResult, expectedLibsOrigin, isMiloSite,
+  isRuntimePath, libsPaths, loadConfig, measureEntry, parseDemoUrls, parseNameStatus, previewOrigin,
+  renderReport, servedCheckPaths, validateDemoUrl, variantHostError, variantUrl, verifyServed,
 } from './core.js';
 import { branchHead, changedFiles, pullRequest, upsertComment } from './github.js';
 
@@ -66,28 +66,35 @@ async function currentBody(event) {
 
 // Both preview hosts must serve exactly the committed files, or the comparison is meaningless.
 async function servedError(result, runtime, pr) {
-  const files = runtime.slice(0, MAX_VERIFIED_FILES);
-  if (runtime.length > files.length) {
+  const { paths, truncated } = servedCheckPaths(runtime, { max: MAX_VERIFIED_FILES });
+  if (truncated) {
     result.notes.push(`Only the first ${MAX_VERIFIED_FILES} changed files were checked on aem.live.`);
   }
   const sides = [
     { name: 'after', origin: result.bLibs, sha: pr.head.sha, repo: pr.head.repo.full_name, ref: pr.head.ref },
     { name: 'before', origin: result.aLibs, sha: result.baseSha, repo: pr.base.repo.full_name, ref: pr.base.ref },
   ];
+  // Consumer pages (e.g. main--da-cc--adobecom.aem.live) load Milo from the branch host.
+  const consumer = config.pages.find((page) => !isMiloSite(new URL(page.url).hostname));
+  const corsOrigin = consumer && new URL(consumer.url).origin;
   const checks = await Promise.all(sides.map(async (side) => ({
     side,
     ...await verifyServed(
-      files.map(({ path }) => ({ path, expected: gitFile(side.sha, path) })),
-      { origin: side.origin },
+      paths.map((path) => ({ path, expected: gitFile(side.sha, path) })),
+      { origin: side.origin, corsOrigin },
     ),
   })));
-  const failed = checks.find((check) => !check.ok);
-  if (!failed) return null;
-  const { side, mismatches } = failed;
+  const failures = checks.filter((check) => !check.ok);
+  if (!failures.length) return null;
+  const { side, mismatches } = failures[0];
   if (mismatches.every((item) => item.endsWith('(HTTP 404)'))) {
-    return `The ${side.name} code is not served at ${side.origin}. Install the AEM Code Sync GitHub app (https://github.com/apps/aem-code-sync) on ${side.repo} so ${side.ref} is published to aem.live.`;
+    return `The ${side.name} code is not served at ${side.origin}. Install the AEM Code Sync GitHub app (https://github.com/apps/aem-code-sync) on ${side.repo} and finish its setup on tools.aem.live so ${side.ref} is published to aem.live.`;
   }
-  return `The ${side.name} code at ${side.origin} does not match ${side.ref} (${side.sha.slice(0, 7)}): ${mismatches.slice(0, 3).join(', ')}. AEM Code Sync may be delayed; re-run the check.`;
+  if (failures.every((check) => check.mismatches.every((item) => item.endsWith('(no CORS header)')))) {
+    const list = (key) => [...new Set(failures.map((check) => check.side[key]))].join(' and ');
+    return `The code at ${list('origin')} has no access-control-allow-origin header, so browsers block adobecom pages from loading it. Add the header with the value * for /libs/** to the AEM site configuration of ${list('repo')} (https://www.aem.live/docs/custom-headers), as adobecom/milo has, then force-push ${list('ref')}: aem.live adds headers only when Code Sync copies the files.`;
+  }
+  return `The ${side.name} code at ${side.origin} does not match ${side.ref} (${side.sha.slice(0, 7)}): ${mismatches.slice(0, 3).join(', ')}. AEM Code Sync may be delayed; re-run the check. If it keeps failing, aem.live has an older copy of the branch: normal pushes only copy the changed files, while creating or force-pushing the branch copies all of them.`;
 }
 
 function hasNewBlock(page, newBlocks) {

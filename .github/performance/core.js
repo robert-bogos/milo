@@ -144,18 +144,36 @@ export function variantHostError(libs, expected, other = null) {
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
+// Every Milo page loads utils.js, so it exposes a host that still serves an older copy of a branch
+// (Code Sync only re-copies a whole branch when it is created or force-pushed).
+export const SERVED_SENTINELS = ['libs/utils/utils.js'];
+
+/** The files whose served copies are compared with git: changed runtime files plus sentinels. */
+export function servedCheckPaths(runtime, { max = 15, sentinels = SERVED_SENTINELS } = {}) {
+  const changed = runtime.slice(0, max).map(({ path }) => path);
+  return { paths: [...new Set([...changed, ...sentinels])], truncated: runtime.length > max };
+}
+
 /**
  * Waits until a preview host serves exactly the expected file contents (AEM Code Sync can lag
- * behind a push). `expected === null` means the file must not exist.
+ * behind a push). `expected === null` means the file must not exist. With `corsOrigin`, files must
+ * also allow that origin: pages on other hosts import Milo as ES modules, which browsers block
+ * without the header. aem.live adds custom headers when Code Sync copies a file, so a missing
+ * header can also appear while a copy is in progress.
  */
 export async function verifyServed(files, options) {
   const {
     origin,
+    corsOrigin,
     attempts = 12,
     delayMs = 20000,
     fetchImpl = fetch,
     sleep = wait,
   } = options;
+  const allowsCors = (response) => {
+    const allowed = response.headers?.get('access-control-allow-origin');
+    return allowed === '*' || allowed === corsOrigin;
+  };
   let mismatches = [];
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (attempt) {
@@ -163,11 +181,15 @@ export async function verifyServed(files, options) {
     }
     mismatches = (await Promise.all(files.map(async ({ path, expected }) => {
       try {
-        const response = await fetchImpl(`${origin}/${path}?perf-check=${Date.now()}`, { redirect: 'manual' });
+        const response = await fetchImpl(`${origin}/${path}?perf-check=${Date.now()}`, {
+          redirect: 'manual',
+          ...(corsOrigin && { headers: { origin: corsOrigin } }),
+        });
         if (expected === null) return response.status === 404 ? null : `${path} (still served)`;
         if (!response.ok) return `${path} (HTTP ${response.status})`;
         const body = Buffer.from(await response.arrayBuffer());
-        return body.equals(expected) ? null : `${path} (outdated content)`;
+        if (!body.equals(expected)) return `${path} (outdated content)`;
+        return !corsOrigin || allowsCors(response) ? null : `${path} (no CORS header)`;
       } catch (error) {
         return `${path} (${error.message})`;
       }

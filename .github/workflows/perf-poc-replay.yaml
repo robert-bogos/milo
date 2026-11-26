@@ -1,8 +1,8 @@
 name: Performance check replay (POC)
 
 # Proof of concept for robert-bogos/milo only; see .github/performance-poc/README.md.
-# Same jobs as performance-check.yaml, but the pull request being measured is the adobecom/milo
-# pull request named in the description ("Replay: adobecom/milo#1234").
+# Same jobs as performance-check.yaml, but what is measured is the adobecom/milo pull request or
+# branch named in the description ("Replay: adobecom/milo#1234" or "Replay: adobecom/milo@<branch>").
 on:
   pull_request:
     branches: [perf-poc]

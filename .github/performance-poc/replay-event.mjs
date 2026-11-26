@@ -1,13 +1,18 @@
 // POC only: turns a fork pull request that says "Replay: adobecom/milo#1234" into the
 // pull_request event the real check would get for that upstream pull request.
+// "Replay: adobecom/milo@<branch>" does the same for an adobecom/milo branch without a pull
+// request, as if it were opened against stage, so test changes stay out of the milo PR list.
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const { env } = process;
 const carrier = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
 const body = carrier.pull_request.body || '';
-const match = /Replay:\s*(?:https:\/\/github\.com\/)?adobecom\/milo(?:\/pull\/|#)(\d+)/i.exec(body);
-if (!match) throw new Error('Add "Replay: adobecom/milo#<number>" to the pull request description.');
+const pull = /Replay:\s*(?:https:\/\/github\.com\/)?adobecom\/milo(?:\/pull\/|#)(\d+)/i.exec(body);
+const branch = /Replay:\s*(?:https:\/\/github\.com\/adobecom\/milo\/tree\/|adobecom\/milo@)([\w./-]*[\w-])/i.exec(body);
+if (!pull && !branch) {
+  throw new Error('Add "Replay: adobecom/milo#<number>" or "Replay: adobecom/milo@<branch>" to the pull request description.');
+}
 
 async function api(path) {
   const response = await fetch(`https://api.github.com/${path}`, {
@@ -21,7 +26,21 @@ async function api(path) {
   return response.json();
 }
 
-const upstream = await api(`repos/adobecom/milo/pulls/${match[1]}`);
+async function upstreamBranch(name) {
+  const [repo, tip] = await Promise.all([
+    api('repos/adobecom/milo'),
+    api(`repos/adobecom/milo/branches/${encodeURIComponent(name)}`),
+  ]);
+  return {
+    number: null,
+    title: `Branch ${name}`,
+    html_url: `https://github.com/adobecom/milo/tree/${name}`,
+    base: { ref: 'stage', repo },
+    head: { ref: name, sha: tip.commit.sha, repo },
+  };
+}
+
+const upstream = pull ? await api(`repos/adobecom/milo/pulls/${pull[1]}`) : await upstreamBranch(branch[1]);
 if (upstream.head.repo?.full_name !== 'adobecom/milo') {
   throw new Error('Only pull requests from adobecom/milo branches are served on aem.live.');
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   REPORT_MARKER, classifyChanges, classifyPage, confirmVerdict, evaluateResult, expectedLibsOrigin,
   libsPaths, loadConfig, measureEntry, parseDemoUrls, parseNameStatus, previewOrigin, renderReport,
-  validateDemoUrl, variantHostError, variantUrl, verifyServed,
+  servedCheckPaths, validateDemoUrl, variantHostError, variantUrl, verifyServed,
 } from '../core.js';
 
 const config = loadConfig();
@@ -326,6 +326,36 @@ describe('verifyServed', () => {
       sleep: async () => {},
     });
     assert.deepEqual(stale.mismatches, ['libs/a.js (HTTP 404)']);
+  });
+
+  it('requires the CORS header that pages on other hosts need to import the code', async () => {
+    const page = 'https://main--da-cc--adobecom.aem.live';
+    const files = [{ path: 'libs/a.js', expected: Buffer.from('new') }];
+    const serve = (allowed) => async (url, request) => {
+      assert.equal(request.headers.origin, page);
+      const { buffer } = new TextEncoder().encode('new');
+      const cors = allowed.shift();
+      const headers = new Headers(cors ? { 'access-control-allow-origin': cors } : {});
+      return { ok: true, status: 200, arrayBuffer: async () => buffer, headers };
+    };
+    const options = { origin: BRANCH, corsOrigin: page, sleep: async () => {} };
+    // The header appears once Code Sync has copied the file again.
+    const copied = await verifyServed(files, { ...options, fetchImpl: serve([null, '*']) });
+    assert.deepEqual(copied, { ok: true, mismatches: [], attempts: 2 });
+    const missing = await verifyServed(files, { ...options, attempts: 2, fetchImpl: serve([null, 'https://other.example']) });
+    assert.deepEqual(missing.mismatches, ['libs/a.js (no CORS header)']);
+    const exact = await verifyServed(files, { ...options, attempts: 1, fetchImpl: serve([page]) });
+    assert.equal(exact.ok, true);
+  });
+
+  it('also compares utils.js, so an older copy of an unchanged file is caught', () => {
+    const runtime = ['libs/blocks/a/a.js', 'libs/blocks/b/b.js', 'libs/blocks/c/c.js'].map((path) => ({ path }));
+    const utils = 'libs/utils/utils.js';
+    const single = servedCheckPaths(runtime.slice(0, 1));
+    assert.deepEqual(single, { paths: [runtime[0].path, utils], truncated: false });
+    assert.deepEqual(servedCheckPaths([{ path: utils }]).paths, [utils]);
+    const capped = servedCheckPaths(runtime, { max: 2 });
+    assert.deepEqual(capped, { paths: [runtime[0].path, runtime[1].path, utils], truncated: true });
   });
 });
 
