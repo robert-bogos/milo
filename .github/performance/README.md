@@ -38,7 +38,7 @@ A gated metric regresses when **both** are true for the valid pairs:
 2. a one-sided [Wilcoxon signed-rank test](https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test)
    on the paired differences gives p < 0.05 (exact distribution, tied ranks averaged).
 
-Unlike the mean, the estimate is not skewed by a single outlier load: one 26.6-second load among
+Unlike the mean, the estimate is barely moved by a few outlier loads: one 26.6-second load among
 loads of about 5.8 seconds made a page that was 15% slower look 16% faster on average. The report
 shows medians and this estimate.
 
@@ -98,6 +98,28 @@ runner calibration and the production repository.
 - Up to 17 page jobs per round (15 MVP pages and 2 demo pages), each about 7–25 minutes. A check
   takes about 30 minutes, or about an hour when a page is re-measured.
 - Pull requests from forks get a read-only token, so their report is only in the job summary.
+
+## Validation
+
+Test pull requests on a fork (GitHub-hosted `ubuntu-latest` runners, November 2026) slowed LCP on
+every page by a share of its LCP:
+
+| LCP slowdown | Estimated | Result on the 15 MVP pages |
+| --- | --- | --- |
+| 9% | +8.0% to +9.4% | all pass |
+| 11% | +10.0% to +11.7% | all fail |
+| 12% | +11.0% to +13.2% | all fail |
+| 15% | +13.5% to +16.2% | 13 fail, 2 inconclusive (Lighthouse errors, now ignored) |
+| 20% | +19.4% to +21.9% | all fail |
+
+- Without an LCP change (69 page rounds), the estimate was −0.9% to +0.7% and no page failed on
+  LCP, so the limit, not noise, decides. A 5% `metrics.lcp.relative` would not have failed any of
+  them.
+- A 6 px layout shift late in the load (CLS +0.006 to +0.007) failed the 6 pages with a low CLS.
+  On the other 9 it fell outside the page's largest burst of shifts or did not change CLS
+  consistently.
+- With the mean instead of the Hodges–Lehmann estimate, 3 pages passed a 12% or 15% slowdown,
+  because of one or two unusually slow loads.
 
 ## Limitations
 
