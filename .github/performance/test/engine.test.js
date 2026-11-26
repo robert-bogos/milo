@@ -176,6 +176,14 @@ const FAKE_JOB = `
 const calls = [];
 export async function runJob({ spec, pair, attempts }) {
   calls.push({ names: spec.names, runs: spec.runs, pair, attempts });
+  const { url } = spec.variants.after;
+  const stray = url.includes('/stray') ? 'Protocol error (Runtime.evaluate): Inspected target navigated or closed'
+    : url.includes('/crash') ? 'out of memory' : null;
+  if (stray) {
+    // Like Lighthouse's CPU-idle poll: a timer callback whose rejection nobody handles.
+    setTimeout(() => Promise.reject(new Error(stray)));
+    await new Promise((resolve) => { setTimeout(resolve, 50); });
+  }
   return { status: 'ok', attempts, calls };
 }
 `;
@@ -230,5 +238,13 @@ describe('measurePage', () => {
   it('reports why perf-tools failed', async () => {
     const result = await measure('broken', 'https://www.adobe.com/broken.html');
     assert.equal(result.error, 'perf-tools did not finish (invalid spec: broken)');
+  });
+
+  it('survives a Lighthouse protocol error outside the run, but not other stray errors', async () => {
+    const stray = await measure('stray', 'https://www.adobe.com/stray.html');
+    assert.equal(stray.error, undefined);
+    assert.equal(stray.runs.length, 2);
+    const crash = await measure('crash', 'https://www.adobe.com/crash.html');
+    assert.equal(crash.error, 'perf-tools did not finish (out of memory)');
   });
 });

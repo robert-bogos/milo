@@ -9,6 +9,26 @@ import { pathToFileURL } from 'node:url';
 const [specFile, out, toolsDir] = process.argv.slice(2);
 const lib = (name) => import(pathToFileURL(join(toolsDir, 'lib', 'pagespeed', name)).href);
 
+function fail(error) {
+  console.error(error);
+  // measurePage reports this line as the reason.
+  console.error(`perf-tools failed: ${String(error?.message || error).split('\n')[0].slice(0, 300)}`);
+}
+
+// Lighthouse polls for CPU idle from a timer without handling the promise, so a page that
+// navigates or closes during the poll rejects outside the run and would end this process, losing
+// the finished pairs. The load itself still ends: the load timeout stops the wait, or perf-tools
+// rejects and retries the load.
+process.on('unhandledRejection', (reason) => {
+  const message = String(reason?.message || reason);
+  if (/^Protocol error\b/.test(message)) {
+    console.warn(`perf-tools: ignored a Lighthouse error outside the run: ${message}`);
+    return;
+  }
+  fail(reason);
+  process.exit(1);
+});
+
 // The first load on a fresh runner is slower (cold disk and DNS caches), which would penalize
 // the variant that the first pair loads first. One discarded load of the page absorbs that.
 async function warmUp(runJob, options) {
@@ -44,8 +64,6 @@ try {
   });
   console.log(`perf-tools: ${results.status}${results.error ? ` (${results.error})` : ''}`);
 } catch (error) {
-  console.error(error);
-  // measurePage reports this line as the reason.
-  console.error(`perf-tools failed: ${String(error?.message || error).split('\n')[0].slice(0, 300)}`);
+  fail(error);
   process.exitCode = 1;
 }

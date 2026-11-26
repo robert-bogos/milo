@@ -100,9 +100,14 @@ runner calibration and the production repository.
   fonts are listed but not measured. Deleted files are not removed from the page.
 - Discovery does not scroll or click, so code that loads only on interaction is not detected.
 - perf-tools measures at most 10 pairs per page.
+- CLS is the page's largest burst of layout shifts. A new shift that lands outside that burst
+  and is smaller than it leaves CLS unchanged, so it does not fail the check.
 - Speed Index does not gate, so the workflow makes it optional in perf-tools, which otherwise
   rejects a load without one. On US runners, `acrobat.html` is covered by a near-white layer about
   20 seconds into the load, which makes its Speed Index 0. LCP and CLS are not affected.
+- Lighthouse 13 can raise a protocol error from its CPU-idle wait after the page closed or
+  navigated, outside the load it belongs to. The measure job ignores these errors, which would
+  otherwise stop perf-tools and lose the page's finished pairs.
 
 ## Local use
 
