@@ -144,6 +144,16 @@ export function variantHostError(libs, expected, other = null) {
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
+// Every Milo page loads utils.js, so it exposes a host that still serves an older copy of a branch
+// (Code Sync only re-copies a whole branch when it is created or force-pushed).
+export const SERVED_SENTINELS = ['libs/utils/utils.js'];
+
+/** The files whose served copies are compared with git: changed runtime files plus sentinels. */
+export function servedCheckPaths(runtime, { max = 15, sentinels = SERVED_SENTINELS } = {}) {
+  const changed = runtime.slice(0, max).map(({ path }) => path);
+  return { paths: [...new Set([...changed, ...sentinels])], truncated: runtime.length > max };
+}
+
 /**
  * Waits until a preview host serves exactly the expected file contents (AEM Code Sync can lag
  * behind a push). `expected === null` means the file must not exist.

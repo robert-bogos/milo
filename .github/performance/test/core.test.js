@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   REPORT_MARKER, classifyChanges, classifyPage, confirmVerdict, evaluateResult, expectedLibsOrigin,
   libsPaths, loadConfig, measureEntry, parseDemoUrls, parseNameStatus, previewOrigin, renderReport,
-  validateDemoUrl, variantHostError, variantUrl, verifyServed,
+  servedCheckPaths, validateDemoUrl, variantHostError, variantUrl, verifyServed,
 } from '../core.js';
 
 const config = loadConfig();
@@ -326,6 +326,16 @@ describe('verifyServed', () => {
       sleep: async () => {},
     });
     assert.deepEqual(stale.mismatches, ['libs/a.js (HTTP 404)']);
+  });
+
+  it('also compares utils.js, so an older copy of an unchanged file is caught', () => {
+    const runtime = ['libs/blocks/a/a.js', 'libs/blocks/b/b.js', 'libs/blocks/c/c.js'].map((path) => ({ path }));
+    const utils = 'libs/utils/utils.js';
+    const single = servedCheckPaths(runtime.slice(0, 1));
+    assert.deepEqual(single, { paths: [runtime[0].path, utils], truncated: false });
+    assert.deepEqual(servedCheckPaths([{ path: utils }]).paths, [utils]);
+    const capped = servedCheckPaths(runtime, { max: 2 });
+    assert.deepEqual(capped, { paths: [runtime[0].path, runtime[1].path, utils], truncated: true });
   });
 });
 
