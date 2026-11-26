@@ -271,6 +271,18 @@ describe('renderReport', () => {
     assert.match(report.body, /`perf-traces-\*` artifacts/);
     assert.match(report.body, /\n- Photoshop: https:\/\/www\.adobe\.com\/products\/photoshop\.html\n/);
     assert.doesNotMatch(renderReport({ plan, verdicts: [verdict], config, enforce: true }).body, /not blocking/);
+    assert.doesNotMatch(report.body, /TBT n\/a/);
+  });
+
+  it('explains a TBT that Lighthouse could not compute', () => {
+    const noTbt = evaluateResult(compareResult(
+      lcps.map((lcp) => ({ lcp, tbt: null })),
+      lcps.map((lcp) => ({ lcp, tbt: null })),
+      { id: 'photoshop' },
+    ), config);
+    const { body } = renderReport({ plan, verdicts: [noTbt], config });
+    assert.match(body, /\| n\/a \| ✅ \|/);
+    assert.match(body, /TBT n\/a: Lighthouse measures TBT up to Time to Interactive/);
   });
 
   it('explains unreproduced slowdowns, files that were not swapped and perf-tools warnings', () => {

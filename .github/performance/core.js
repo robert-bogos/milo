@@ -385,15 +385,21 @@ function pageLink(page) {
 
 function compareRows(rows, config) {
   const lines = [
-    '| Page | LCP before → after | LCP Δ | p | CLS Δ | TBT Δ | Result |',
+    '| Page | LCP before → after | LCP Δ | LCP p | CLS Δ | TBT Δ | Result |',
     '|:--|--:|--:|--:|--:|--:|:--|',
   ];
+  let tbtMissing = false;
   rows.forEach(({ page, verdict }) => {
     const m = (verdict.first?.metrics ? verdict.first : verdict).metrics || {};
     const lcp = m.lcp ? `${formatValue('lcp', m.lcp.before)} → ${formatValue('lcp', m.lcp.after)}` : 'n/a';
     const p = m.lcp ? formatP(m.lcp.p) : 'n/a';
-    lines.push(`| ${pageLink(page)} | ${lcp} | ${formatDelta('lcp', m.lcp)} | ${p} | ${formatDelta('cls', m.cls)} | ${formatDelta('tbt', m.tbt)} | ${describeVerdict(verdict, config)} |`);
+    const tbt = formatDelta('tbt', m.tbt);
+    tbtMissing ||= Boolean(m.lcp) && tbt === 'n/a';
+    lines.push(`| ${pageLink(page)} | ${lcp} | ${formatDelta('lcp', m.lcp)} | ${p} | ${formatDelta('cls', m.cls)} | ${tbt} | ${describeVerdict(verdict, config)} |`);
   });
+  if (tbtMissing) {
+    lines.push('', 'ℹ️ TBT n/a: Lighthouse measures TBT up to Time to Interactive, which it could not find because the page was still busy when the load ended.');
+  }
   return lines;
 }
 
